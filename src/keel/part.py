@@ -15,7 +15,7 @@ from .topo import Edge, Face, Selection, Vertex, select
 
 
 class BBox(tuple):
-    """(min, max) corners. The kernel pads boxes by its tolerance (~2e-5)."""
+    """(min, max) corners."""
 
     @property
     def min(self):
@@ -61,11 +61,13 @@ class Part:
     # -- measures -----------------------------------------------------------------------------
     @property
     def volume(self) -> float:
-        return self._brep.volume()
+        """Enclosed volume (relative accuracy ~1e-6; the kernel's quick estimate can be 1e-3 off)."""
+        return _volume(self._brep, 1e-6)
 
     @property
     def area(self) -> float:
-        return self._brep.area()
+        """Surface area (relative accuracy ~1e-4, the kernel's finest)."""
+        return self._brep.area(1e-4)
 
     @property
     def center(self) -> tuple:
@@ -74,7 +76,8 @@ class Part:
 
     @property
     def bbox(self) -> BBox:
-        mn, mx = self._brep.bounding_box()
+        """Tight bounding box of the trimmed geometry."""
+        mn, mx = self._brep.bounding_box(True)
         return BBox((tuple(mn), tuple(mx)))
 
     @property
@@ -113,7 +116,9 @@ class Part:
         for other in _flatten(others):
             if not isinstance(other, Part):
                 raise TypeError(f"cannot {name} a Part with {type(other).__name__}")
-            result = call(name, fn, result, other._copy())
+            before = result
+            result = call(name, fn, before.copy(), other._copy())
+            _check_boolean(name, before, other._brep, result)
         return self._new(result)
 
     __add__ = fuse
@@ -243,6 +248,42 @@ class Part:
                 raise KeelError(f"{e!r} is not an edge of this part")
             out.append(match)
         return b, out
+
+
+def _check_boolean(name: str, a, b, result) -> None:
+    """Catch the kernel returning a geometrically impossible boolean result.
+
+    The kernel occasionally drops an operand without reporting an error (seen when a
+    mirrored part shares partially trimmed faces with the original). A fuse must contain
+    both operands and be at least as big as each; a cut and an intersect can't add volume.
+    """
+    va, vb, vr = (_volume(x, 1e-4) for x in (a, b, result))
+    tol_v = 1e-3 * max(va, vb, 1e-9)
+    if name == "fuse":
+        ok = vr >= max(va, vb) - tol_v and _box_contains(result, a, b)
+    elif name == "cut":
+        ok = vr <= va + tol_v
+    else:
+        ok = vr <= min(va, vb) + tol_v
+    if not ok:
+        raise KeelError(
+            f"{name} failed: the kernel returned an impossible result (volumes {va:.6g}, {vb:.6g} -> "
+            f"{vr:.6g}). This usually means the parts share coincident faces the kernel can't "
+            "resolve; overlap them by a small amount or build the shape another way."
+        )
+
+
+def _volume(brep, accuracy: float) -> float:
+    return ub.compute_volume(brep, accuracy)
+
+
+def _box_contains(result, a, b) -> bool:
+    (rmin, rmax), (amin, amax), (bmin, bmax) = (x.bounding_box(True) for x in (result, a, b))
+    size = max(max(amax[i] - amin[i], bmax[i] - bmin[i]) for i in range(3))
+    tol = max(1e-4, 1e-6 * size)
+    return all(
+        rmin[i] <= m[i] + tol and rmax[i] >= x[i] - tol for (m, x) in ((amin, amax), (bmin, bmax)) for i in range(3)
+    )
 
 
 def _same_edge(a, b, tol: float = 1e-6) -> bool:

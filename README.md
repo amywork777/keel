@@ -125,8 +125,23 @@ Files are written by NVIDIA's own exporter, so anything that reads usd-brep's sc
 ## Kernel notes
 
 - Booleans, fillets and shells are SMLib's. When one fails, keel raises `KeelError` naming the operation.
-- Volumes and areas from the kernel are accurate to about 1e-4 relative. Bounding boxes include the kernel's ~2e-5 tolerance pad.
+- **Silent bad booleans are caught.** keel checks every boolean result: a fuse must contain both
+  parts, and a cut or intersect can't add volume. The kernel can silently drop a part when a
+  mirrored copy shares partly-trimmed faces with the original (e.g. `arm + arm.mirror("YZ")`
+  where both include the same hub). keel raises instead. Build such shapes with `rotate`, or
+  overlap them slightly.
+- `Part.volume` and `Sketch.area` are measured to ~1e-6. The kernel's quick `volume()` can be
+  0.1–0.7% off. `Part.area` is ~1e-4, the kernel's finest. `Part.bbox` is the tight box of the
+  trimmed geometry.
+- Lofts line up each section's start point with the first section's, so circle → polygon → circle doesn't twist.
 - Not available yet: text, STEP import/export, and per-edge variable fillets.
+
+## Testing
+
+`bin/keel -m pytest tests` runs the unit tests, checked against analytic volumes to 1e-4.
+`cd gallery && ../bin/keel gallery.py` builds 12 realistic parts, checks each is valid and
+survives a USD round trip, and writes STL/USD. `render.py` there draws them all into
+`gallery/out/gallery.png`.
 
 ## Layout
 
@@ -135,5 +150,6 @@ src/keel/      _kernel (kernel access), geom (Plane/Axis), topo (Face/Edge/Selec
                part (Part), sketch (2D), path (1D), solids (primitives), io, build, patterns
 tests/         pytest suite (bin/keel -m pytest tests)
 examples/      bracket.py, bottle.py
+gallery/       realistic-part regression run + renderer
 docker/        the kernel image
 ```

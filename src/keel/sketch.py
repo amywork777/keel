@@ -23,7 +23,11 @@ class Sketch:
     # -- measures -----------------------------------------------------------------------------
     @property
     def area(self) -> float:
-        return self._sheet.area()
+        """Enclosed area. Measured as the volume of a unit extrusion: the kernel's area
+        integration stops at ~1e-4 accuracy, its volume integration goes to ~1e-6."""
+        sheet = self._sheet.copy()
+        body = call("area", ub.non_manifold_linear_sweep, sheet, (0.0, 0.0, 1.0), 1.0, faces=sheet.faces())
+        return ub.compute_volume(body, 1e-6)
 
     @property
     def region_count(self) -> int:
@@ -32,7 +36,7 @@ class Sketch:
     @property
     def bbox(self):
         """Local-coordinate bounding box ((xmin, ymin), (xmax, ymax))."""
-        mn, mx = self._sheet.bounding_box()
+        mn, mx = self._sheet.bounding_box(True)
         return (mn[0], mn[1]), (mx[0], mx[1])
 
     # -- 2D booleans --------------------------------------------------------------------------
@@ -276,16 +280,40 @@ def sweep(sketch: Sketch, path) -> Part:
 
 
 def loft(*sketches: Sketch, smooth: bool = False) -> Part:
-    """Skin a solid through single-region sketches (each placed with ``.on``)."""
+    """Skin a solid through single-region sketches (each placed with ``.on``).
+
+    The kernel joins each section's loop start to the next one's, so keel first lines
+    every section's start up with the first section's (rotating polygon loops, or turning
+    single-curve loops like circles about their center) to avoid a twisted result.
+    """
     sketches = list(sketches[0]) if len(sketches) == 1 and isinstance(sketches[0], (list, tuple)) else list(sketches)
     if len(sketches) < 2:
         raise ValueError("loft needs at least two sketches")
-    counts, curves = [], []
+    counts, curves, ref = [], [], None
     for s in sketches:
+        placed = s._placed()
+        if placed.face_count() != 1:
+            raise KeelError("loft sections must be single regions")
+        face = placed.faces()[0]
+        center = tuple(face.centroid())
         loops = s._loop_curves()
-        if len(loops) != 1 or loops[0][1]:
-            raise KeelError("loft sections must be single regions without holes")
-        counts.append(len(loops[0][0]))
-        curves += loops[0][0]
+        if loops[0][1]:
+            raise KeelError("loft sections must not have holes")
+        loop = loops[0][0]
+        if ref is None:
+            ref = g.norm(g.sub(tuple(loop[0].start_point()), center))
+        elif len(loop) == 1:
+            start_dir = g.norm(g.sub(tuple(loop[0].start_point()), center))
+            angle = math.degrees(math.atan2(g.dot(g.cross(start_dir, ref), s.plane.z), g.dot(start_dir, ref)))
+            if abs(angle) > 1e-9:
+                loop = s.on(s.plane.rotated(0)).rotate(angle)._loop_curves()[0][0]
+        else:
+            def misalign(i):
+                d = g.norm(g.sub(tuple(loop[i].start_point()), center))
+                return -g.dot(d, ref)
+            k = min(range(len(loop)), key=misalign)
+            loop = loop[k:] + loop[:k]
+        counts.append(len(loop))
+        curves += loop
     degree = min(3, len(sketches) - 1) if smooth else 1
     return Part(call("loft", ub.create_skin_primitive, counts, curves, degree))

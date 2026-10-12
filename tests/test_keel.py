@@ -8,7 +8,7 @@ from keel import *
 PI = math.pi
 
 
-def close(a, b, rel=2e-3):
+def close(a, b, rel=1e-4):
     return a == pytest.approx(b, rel=rel)
 
 
@@ -285,3 +285,27 @@ def test_errors_are_keel_errors():
         Box(10, 10, 10).fillet("|Z", 50)
     with pytest.raises(KeelError):
         Box(1, 1, 1).fillet(Box(5, 5, 5).edges("|Z"), 0.1)
+
+
+def test_sweep_path_with_clockwise_arc():
+    path = Pen(0, 0).v(30).tangent_arc_to(30, 60).h(40).path.on("XZ")
+    p = Circle(2).sweep(path)
+    assert p.is_valid and close(p.volume, PI * 4 * (30 + 15 * PI + 40))
+
+
+def test_impossible_boolean_raises_instead_of_dropping_geometry():
+    arm = Slot(40, 10).move(15, 0).extrude(6) + Cylinder(8, 6, align=("center", "center", "min"))
+    with pytest.raises(KeelError, match="impossible result"):
+        arm + arm.mirror("YZ")
+    # the same shape built by rotation fuses fine
+    assert close((arm + arm.rotate("Z", 180)).volume, 2 * arm.volume - PI * 64 * 6, rel=5e-3)
+
+
+def test_loft_sections_are_aligned_not_twisted():
+    # a straight prism lofted between identical hexagons, one built rotated a full turn of
+    # vertices: an untwisted loft has the prism's exact volume
+    hexagon = RegularPolygon(10, 6)
+    p = loft(hexagon, RegularPolygon(10, 6, rotation=60).on(Plane.XY.offset(20)))
+    assert close(p.volume, hexagon.area * 20)
+    q = loft(Circle(5), RegularPolygon(5, 4, rotation=45).on(Plane.XY.offset(10)), Circle(5).on(Plane.XY.offset(20)))
+    assert q.is_valid

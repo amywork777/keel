@@ -88,7 +88,11 @@ class _Arc(_Seg):
     def build(self):
         if self.a1 > self.a0:
             return ub.create_arc(self.c, self.r, self.a0, self.a1)
-        return ub.create_arc(self.c, self.r, self.a1, self.a0)  # same arc, drawn the other way
+        # The kernel only draws counter-clockwise arcs. Draw this clockwise arc
+        # counter-clockwise in a frame mirrored across y, then reflect it back, so the
+        # curve still runs from start to end (chained sweep paths need that).
+        arc = ub.create_arc((self.c[0], -self.c[1], 0.0), self.r, -self.a0, -self.a1)
+        return ub.scale(arc, (1.0, -1.0, 1.0))
 
     build_bspline = build
 
