@@ -170,6 +170,15 @@ class Plane:
             ub.translate(obj, self.origin)
         return obj
 
+    def unplace(self, obj):
+        """Inverse of ``place``: move a kernel object from this plane back to world XY (mutates)."""
+        if length(self.origin) > 0:
+            ub.translate(obj, mul(self.origin, -1))
+        rot = self._rotation()
+        if rot is not None:
+            ub.rotate(obj, (0.0, 0.0, 0.0), rot[0], -rot[1])
+        return obj
+
     def is_parallel(self, other: "Plane", tol: float = TOL) -> bool:
         return abs(abs(dot(self.z, other.z)) - 1) < tol
 

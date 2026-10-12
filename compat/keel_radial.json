@@ -1,0 +1,141 @@
+[
+ {
+  "model": "accessory",
+  "function": "accessory",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "barrels",
+  "function": "barrels",
+  "status": "error",
+  "error": "AttributeError: 'Sketch' object has no attribute 'vertices'",
+  "where": [
+   "barrels.py:310 barrel = build_barrel_proto()",
+   "barrels.py:156 face = _fillet_profile_face(face, pts, root_big, 1.6)",
+   "barrels.py:143 for v in face.vertices():"
+  ]
+ },
+ {
+  "model": "blower",
+  "function": "blower",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "cam",
+  "function": "cam",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "crankcase",
+  "function": "crankcase",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "crankshaft",
+  "function": "crankshaft",
+  "status": "error",
+  "error": "AttributeError: module 'keel.build123d' has no attribute 'make_hull'",
+  "where": [
+   "crankshaft.py:175 body = C.fuse_all([shaft, cheek_plate(s), pin, splines, nose_spline])",
+   "crankshaft.py:140 plate = slab(cheek_outline(s), lo, hi)",
+   "crankshaft.py:135 return bd.make_hull(pin.edges() + lobe.edges())"
+  ]
+ },
+ {
+  "model": "exhaust",
+  "function": "exhaust",
+  "status": "error",
+  "error": "TypeError: unsupported operand type(s) for @: 'Wire' and 'float'",
+  "where": [
+   "exhaust.py:424 protos = build_stack_proto()",
+   "exhaust.py:211 blue = _tube_along([line0, spl.trim(0.0, 0.3)], STACK_RO, STACK_RI)",
+   "exhaust.py:190 p0, t0 = path @ 0.0, path % 0.0"
+  ]
+ },
+ {
+  "model": "heads",
+  "function": "heads",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "ignition",
+  "function": "ignition",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "intake",
+  "function": "intake",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "mount",
+  "function": "mount",
+  "status": "error",
+  "error": "ValueError: max() iterable argument is empty",
+  "where": [
+   "mount.py:262 parts.append(P.style(ring_half(+1), \"mount:ring_left\", EB))",
+   "mount.py:121 body = _one(_torus_ring() & keep)",
+   "mount.py:96 return max(ss, key=lambda s: s.volume)"
+  ]
+ },
+ {
+  "model": "nose",
+  "function": "nose",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "pistons",
+  "function": "pistons",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "propeller",
+  "function": "propeller",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "pushrods",
+  "function": "pushrods",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "radial",
+  "function": "radial",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "reduction",
+  "function": "reduction",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "rods",
+  "function": "rods",
+  "status": "error",
+  "error": "ModuleNotFoundError: No module named 'OCP'"
+ },
+ {
+  "model": "valvetrain",
+  "function": "valvetrain",
+  "status": "error",
+  "error": "KeelError: fuse failed: the kernel returned an impossible result (volumes 83586.3, 3769.94 -> -4.67294e-10). This usually means the parts share coincident faces the kernel can't resolve; overlap them by a small amount or build the shape another way.",
+  "where": [
+   "part.py:118 return self._boolean(ub.boolean_union, \"fuse\", others)",
+   "part.py:133 _check_boolean(name, before, other._brep, result)",
+   "part.py:389 raise KeelError("
+  ]
+ }
+]

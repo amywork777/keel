@@ -6,6 +6,9 @@ always given private copies, so a Part you hold never changes underneath you.
 
 from __future__ import annotations
 
+import math
+import warnings
+
 from typing import Iterable
 
 from . import geom as g
@@ -195,9 +198,31 @@ class Part:
         return self._new(_check_feature("fillet", self._brep, result, reach))
 
     def chamfer(self, edges, distance: float) -> "Part":
-        """Bevel edges, cutting each adjacent face back by ``distance`` (at 90° corners)."""
+        """Bevel edges, cutting each adjacent face back by ``distance``.
+
+        The kernel's flat cross-section is sized like a fillet (it cuts between the lines a
+        round of that radius would touch), so each edge's size is converted from the
+        setback using the angle between its faces: size = distance * tan(wedge / 2).
+        """
         b, es = self._edges_on_copy(edges)
+        sizes = [float(distance) * math.tan(_wedge_angle(e) / 2) for e in es]
         reach = _edge_reach(es, distance)
+        try:
+            result = call("chamfer", ub.fillet_edges_per_edge, b, es, sizes, [ub.FilletXSect.LINEAR] * len(es))
+            return self._new(_check_feature("chamfer", self._brep, result, reach))
+        except KeelError:
+            if all(abs(sz - distance) < 1e-9 * max(1.0, distance) for sz in sizes):
+                raise
+        # Very shallow edges (faces meeting at nearly 180 degrees) need a huge kernel size for
+        # the requested setback, which the kernel can't build. Fall back to one size, exact
+        # on 90-degree edges, and say which edges got a different setback.
+        off = [e for e, sz in zip(es, sizes) if abs(sz - distance) > 1e-6 * max(1.0, distance)]
+        warnings.warn(
+            f"chamfer: the kernel couldn't build an exact {distance:g} setback on {len(off)} edge(s) "
+            "that meet at shallow angles; those got a smaller setback",
+            stacklevel=2,
+        )
+        b, es = self._edges_on_copy(edges)
         result = call("chamfer", ub.fillet_edges, b, es, radius=float(distance), xsect_type=0)
         return self._new(_check_feature("chamfer", self._brep, result, reach))
 
@@ -281,6 +306,20 @@ def _check_feature(name: str, before, result, reach: float):
             "try a smaller size or fewer edges"
         )
     return result
+
+
+def _wedge_angle(e) -> float:
+    """Angle (radians) of the open wedge at an edge where a round or chamfer sits:
+    pi minus the angle between the two faces' outward normals (pi/2 at a box edge)."""
+    from .topo import face_normal_at
+
+    faces = e.faces()
+    if len(faces) != 2:
+        return math.pi / 2
+    t0, t1 = e.parameter_range()
+    mid = tuple(e.point_at(0.5 * (t0 + t1)))
+    c = max(-1.0, min(1.0, g.dot(face_normal_at(faces[0], mid), face_normal_at(faces[1], mid))))
+    return math.pi - math.acos(c)
 
 
 def _is_smooth(e, tol: float = 1e-6) -> bool:

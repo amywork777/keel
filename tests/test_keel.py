@@ -326,3 +326,12 @@ def test_edge_selection_skips_seams():
     assert len(plate.edges("|Z", seams=True)) == 6
     assert plate.fillet("|Z", 2).is_valid
     assert all(not e.is_seam for e in Cylinder(2, 5).edges())
+
+
+def test_chamfer_setback_on_non_right_angle_edge():
+    # equilateral prism: every edge is a 60 degree wedge; a 1 mm setback removes
+    # a triangle of area 0.5 * 1 * 1 * sin(60 deg) along the 10 mm edge
+    prism = Polygon((0, 0), (10, 0), (5, 10 * math.sin(math.radians(60)))).on("XZ").extrude(10)
+    top = prism.edges(">Z")
+    cut = prism.chamfer(top, 1)
+    assert close(prism.volume - cut.volume, 0.5 * math.sin(math.radians(60)) * 10)

@@ -27,8 +27,9 @@ from typing import Iterable, Sequence
 
 from . import geom as g
 from . import sketch as _sk
+from . import path as _kpath
 from . import solids as _so
-from ._kernel import KeelError
+from ._kernel import KeelError, call, ub
 from .part import Part as _KPart
 from .sketch import Sketch as _KSketch
 from .topo import Edge as _KEdge
@@ -235,7 +236,7 @@ class Location:
             return loc
         if isinstance(other, (list, tuple)) and other and isinstance(other[0], (Shape, Location)):
             return [self * o for o in other]
-        if isinstance(other, Shape):
+        if isinstance(other, (Shape, Sketch, Edge, Wire)):
             return other.moved(self)
         if isinstance(other, Plane):
             return Plane(Location(self) * Location(other))
@@ -368,8 +369,10 @@ class Plane(g.Plane):
     def __mul__(self, other):
         if isinstance(other, Location):
             return Location(self) * other
-        if isinstance(other, Shape):
+        if isinstance(other, (Shape, Sketch, Edge, Wire)):
             return other.moved(Location(self))
+        if isinstance(other, (list, tuple)):
+            return [self * o for o in other]
         return NotImplemented
 
     def __neg__(self):
@@ -573,6 +576,9 @@ class Shape:
     def mirror(self, mirror_plane: Plane | None = None) -> "Shape":
         return self._wrap([p.mirror(mirror_plane or Plane.XY) for p in self._parts])
 
+    def clean(self) -> "Shape":
+        return self
+
     def scale(self, factor: float) -> "Shape":
         return self._wrap([p.scale(factor) for p in self._parts])
 
@@ -640,67 +646,467 @@ def _lump_count(part: _KPart) -> int:
 
 
 class Edge:
-    """An edge with build123d's accessors."""
+    """An edge: either an edge of a part, or a free curve (built from a recipe of points)."""
 
-    def __init__(self, e: _KEdge, owner: Shape | None = None):
+    def __init__(self, e: _KEdge | None = None, owner: Shape | None = None, *, recipe: "_Recipe | None" = None):
         self._e = e
         self._owner = owner
+        self._recipe = recipe
 
+    # -- free-curve constructors (build123d's Edge.make_*) --------------------------------
+    @classmethod
+    def make_line(cls, point1, point2) -> "Edge":
+        return cls(recipe=_Recipe("line", [point1, point2]))
+
+    @classmethod
+    def make_three_point_arc(cls, point1, point2, point3) -> "Edge":
+        return cls(recipe=_Recipe("arc", [point1, point2, point3]))
+
+    @classmethod
+    def make_spline(cls, points, tangents=None, periodic: bool = False, **_) -> "Edge":
+        return cls(recipe=_Recipe("spline", list(points), periodic=periodic))
+
+    @classmethod
+    def make_bezier(cls, *points, weights=None) -> "Edge":
+        pts = list(points[0]) if len(points) == 1 and not isinstance(points[0][0], (int, float)) else list(points)
+        return cls(recipe=_Recipe("bezier", pts))
+
+    @classmethod
+    def make_circle(cls, radius: float, plane: "Plane | None" = None, start_angle: float = 360,
+                    end_angle: float = 360, angular_direction=None) -> "Edge":
+        plane = plane or Plane.XY
+        if abs((end_angle - start_angle) % 360) > 1e-9 and not (start_angle == 360 and end_angle == 360):
+            a0, a1 = math.radians(start_angle), math.radians(end_angle)
+            am = (a0 + a1) / 2 if a1 > a0 else (a0 + a1 + 2 * math.pi) / 2
+            pts = [plane.to_world((radius * math.cos(a), radius * math.sin(a), 0)) for a in (a0, am, a1)]
+            return cls(recipe=_Recipe("arc", pts))
+        pts = [plane.to_world((radius * math.cos(a), radius * math.sin(a), 0)) for a in (0, 2 * math.pi / 3, 4 * math.pi / 3)]
+        return cls(recipe=_Recipe("circle", pts))
+
+    # -- measures (part edges or free curves) ---------------------------------------------
     @property
     def geom_type(self) -> GeomType:
+        if self._recipe is not None:
+            return {"line": GeomType.LINE, "arc": GeomType.CIRCLE, "circle": GeomType.CIRCLE}.get(
+                self._recipe.kind, GeomType.BSPLINE)
         return {"line": GeomType.LINE, "circle": GeomType.CIRCLE}.get(self._e.geom_type, GeomType.BSPLINE)
+
+    def _circle(self):
+        if self._recipe is not None:
+            return self._recipe.circle()
+        return self._e.circle
 
     @property
     def radius(self) -> float:
-        r = self._e.radius
-        if r is None:
+        c = self._circle()
+        if c is None:
             raise ValueError("edge is not circular")
-        return r
+        return c[1]
 
     @property
     def arc_center(self) -> Vector:
-        c = self._e.circle
+        c = self._circle()
         if c is None:
             raise ValueError("edge is not circular")
         return Vector(c[0])
 
     def normal(self) -> Vector:
-        c = self._e.circle
+        c = self._circle()
         if c is None:
             raise ValueError("normal is only defined for circular edges here")
         return Vector(c[2])
 
     @property
     def length(self) -> float:
-        return self._e.length
-
-    def center(self, center_of=None) -> Vector:
-        return Vector(self._e.mid)
+        return self._recipe.build().length() if self._recipe is not None else self._e.length
 
     def start_point(self) -> Vector:
-        return Vector(self._e.start)
+        return Vector(self._recipe.start if self._recipe is not None else self._e.start)
 
     def end_point(self) -> Vector:
-        return Vector(self._e.end)
+        return Vector(self._recipe.end if self._recipe is not None else self._e.end)
 
     def position_at(self, t: float) -> Vector:
+        if self._recipe is not None:
+            c = self._recipe.build()
+            a, b = c.parameter_range()
+            return Vector(c.evaluate(a + t * (b - a)))
         return Vector(self._e.point(t))
 
+    def center(self, center_of=None) -> Vector:
+        return self.position_at(0.5) if self._recipe is not None else Vector(self._e.mid)
+
     def tangent_at(self, t: float = 0.5) -> Vector:
+        if self._recipe is not None:
+            a, b = self.position_at(max(0.0, t - 1e-6)), self.position_at(min(1.0, t + 1e-6))
+            return (b - a).normalized()
         return Vector(self._e.tangent(t))
 
     def bounding_box(self) -> BoundBox:
-        lo, hi = self._e._h.bounding_box()
+        lo, hi = (self._recipe.build() if self._recipe is not None else self._e._h).bounding_box()
         return BoundBox(lo, hi)
 
+    # -- free-curve algebra --------------------------------------------------------------
+    def edges(self) -> "ShapeList":
+        return ShapeList([self])
+
+    def moved(self, loc: Location) -> "Edge":
+        return Edge(recipe=self._free().mapped(Location(loc).apply))
+
+    def mirror(self, about: "Plane | None" = None) -> "Edge":
+        return Edge(recipe=self._free().mapped(_reflector(about or Plane.XZ)))
+
+    def __add__(self, other):
+        return Wire([self, *other.edges()])
+
+    def trim(self, start: float, end: float) -> "Edge":
+        """The part of a free line, arc or Bezier between fractions ``start`` and ``end``."""
+        r = self._free()
+        if r.kind in ("line", "arc", "circle"):
+            pts = [tuple(self.position_at(t)) for t in (start, (start + end) / 2, end)]
+            return Edge(recipe=_Recipe("line" if r.kind == "line" else "arc", pts if r.kind != "line" else [pts[0], pts[2]]))
+        if r.kind == "bezier":
+            return Edge(recipe=_Recipe("bezier", _bezier_segment(r.points, start, end)))
+        raise KeelError("trimming splines is not supported yet (the kernel doesn't expose their control points)")
+
+    def _free(self) -> "_Recipe":
+        if self._recipe is None:
+            raise KeelError("this operation needs a free curve, not an edge of a part")
+        return self._recipe
+
     def __repr__(self):
-        return f"<Edge {self.geom_type.name} {tuple(round(c, 3) for c in self._e.start)}>"
+        return f"<Edge {self.geom_type.name} {tuple(round(c, 3) for c in self.start_point())}>"
+
+
+class Wire:
+    """A chain of free edges."""
+
+    def __init__(self, edges=None):
+        self._edges = [e for e in _flatten(edges or []) for e in (e.edges() if isinstance(e, Wire) else [e])]
+
+    @classmethod
+    def make_polygon(cls, points, close: bool = True) -> "Wire":
+        pts = [tuple(Vector(p)) for p in points]
+        if close and g.dist(pts[0], pts[-1]) > 1e-9:
+            pts.append(pts[0])
+        return cls([Edge.make_line(a, b) for a, b in zip(pts, pts[1:])])
+
+    @classmethod
+    def make_circle(cls, radius: float, plane: "Plane | None" = None) -> "Wire":
+        return cls([Edge.make_circle(radius, plane)])
+
+    def edges(self) -> "ShapeList":
+        return ShapeList(self._edges)
+
+    def moved(self, loc: Location) -> "Wire":
+        return Wire([e.moved(loc) for e in self._edges])
+
+    def mirror(self, about: "Plane | None" = None) -> "Wire":
+        return Wire([e.mirror(about) for e in self._edges])
+
+    def __add__(self, other):
+        return Wire([*self._edges, *other.edges()])
+
+    def start_point(self) -> Vector:
+        return self._edges[0].start_point()
+
+    def end_point(self) -> Vector:
+        return self._edges[-1].end_point()
+
+    @property
+    def length(self) -> float:
+        return sum(e.length for e in self._edges)
+
+
+class _Recipe:
+    """A free curve as its defining points, so rigid moves and mirrors stay exact."""
+
+    def __init__(self, kind: str, points, periodic: bool = False):
+        self.kind = kind
+        self.points = [tuple(float(c) for c in Vector(p)) for p in points]
+        self.periodic = periodic
+
+    def mapped(self, f) -> "_Recipe":
+        return _Recipe(self.kind, [f(p) for p in self.points], self.periodic)
+
+    @property
+    def start(self):
+        return self.points[0]
+
+    @property
+    def end(self):
+        if self.kind == "circle" or (self.kind == "spline" and self.periodic):
+            return self.points[0]
+        return self.points[-1]
+
+    def circle(self):
+        if self.kind not in ("arc", "circle"):
+            return None
+        a, b, c = self.points[:3]
+        return _circumcircle(a, b, c)
+
+    def build(self):
+        """A fresh kernel curve."""
+        k = self.kind
+        if k == "line":
+            return ub.create_line_segment(self.points[0], self.points[1])
+        if k == "bezier":
+            n = len(self.points)
+            if n == 2:
+                return ub.create_line_segment(*self.points)
+            return ub.create_canonical_curve(self.points, [0.0, 1.0], [n, n], degree=n - 1)
+        if k == "spline":
+            pts = self.points + ([self.points[0]] if self.periodic and g.dist(self.points[0], self.points[-1]) > 1e-9 else [])
+            return _kpath._Spline(pts).build()
+        center, r, n = self.circle()
+        x = g.norm(g.sub(self.points[0], center))
+        frame = g.Plane(center, x, n)
+        if k == "circle":
+            return frame.place(ub.create_circle((0.0, 0.0, 0.0), r))
+        end = frame.to_local(self.points[2])
+        sweep = math.degrees(math.atan2(end[1], end[0])) % 360 or 360.0
+        return frame.place(ub.create_arc((0.0, 0.0, 0.0), r, 0.0, sweep))
+
+
+def _bezier_segment(pts, t0: float, t1: float):
+    """Control points of a Bezier restricted to [t0, t1] (exact, by de Casteljau splits)."""
+    def split(ctrl, t):
+        left, right, level = [ctrl[0]], [ctrl[-1]], list(ctrl)
+        while len(level) > 1:
+            level = [g.add(g.mul(a, 1 - t), g.mul(b, t)) for a, b in zip(level, level[1:])]
+            left.append(level[0])
+            right.append(level[-1])
+        return left, right[::-1]
+    _, tail = split(pts, t0)
+    head, _ = split(tail, 0.0 if t0 >= 1 else (t1 - t0) / (1 - t0))
+    return head
+
+
+def _circumcircle(a, b, c):
+    """(center, radius, normal) of the circle through a, b, c, oriented so a -> b -> c runs
+    counter-clockwise about the normal."""
+    ab, ac = g.sub(b, a), g.sub(c, a)
+    n = g.cross(ab, ac)
+    nn = g.dot(n, n)
+    if nn < 1e-24:
+        raise KeelError("arc points are collinear")
+    center = g.add(a, g.mul(g.add(g.mul(g.cross(n, ab), g.dot(ac, ac)), g.mul(g.cross(ac, n), g.dot(ab, ab))), 1 / (2 * nn)))
+    return center, g.dist(center, a), g.norm(n)
+
+
+def _reflector(plane: g.Plane):
+    o, n = plane.origin, plane.z
+    return lambda p: g.sub(p, g.mul(n, 2 * g.dot(g.sub(p, o), n)))
+
+
+def Line(*pts, mode: Mode = Mode.ADD) -> Edge:
+    pts = list(pts[0]) if len(pts) == 1 else list(pts)
+    return Edge.make_line(pts[0], pts[1])
+
+
+def Polyline(*pts, close: bool = False, mode: Mode = Mode.ADD) -> Wire:
+    pts = list(pts[0]) if len(pts) == 1 and not isinstance(pts[0][0], (int, float)) else list(pts)
+    return Wire.make_polygon(pts, close=close)
+
+
+def Spline(*pts, tangents=None, tangent_scalars=None, periodic: bool = False, mode: Mode = Mode.ADD) -> Edge:
+    pts = list(pts[0]) if len(pts) == 1 and not isinstance(pts[0][0], (int, float)) else list(pts)
+    return Edge.make_spline(pts, periodic=periodic)
+
+
+def Bezier(*cntl_pnts, weights=None, mode: Mode = Mode.ADD) -> Edge:
+    return Edge.make_bezier(*cntl_pnts)
+
+
+def ThreePointArc(*pts, mode: Mode = Mode.ADD) -> Edge:
+    pts = list(pts[0]) if len(pts) == 1 else list(pts)
+    return Edge.make_three_point_arc(*pts)
+
+
+def CenterArc(center, radius: float, start_angle: float, arc_size: float, mode: Mode = Mode.ADD) -> Edge:
+    c = tuple(Vector(center))
+    angles = [math.radians(start_angle + arc_size * f) for f in (0.0, 0.5, 1.0)]
+    pts = [(c[0] + radius * math.cos(a), c[1] + radius * math.sin(a), c[2]) for a in angles]
+    if abs(abs(arc_size) - 360) < 1e-9:
+        return Edge(recipe=_Recipe("circle", [pts[0], (c[0] + radius * math.cos(angles[0] + 2.0944), c[1] + radius * math.sin(angles[0] + 2.0944), c[2]), (c[0] + radius * math.cos(angles[0] + 4.1888), c[1] + radius * math.sin(angles[0] + 4.1888), c[2])]))
+    return Edge.make_three_point_arc(*pts)
+
+
+def RadiusArc(start_point, end_point, radius: float, short_sagitta: bool = True, mode: Mode = Mode.ADD) -> Edge:
+    a, b = tuple(Vector(start_point)), tuple(Vector(end_point))
+    chord = g.dist(a, b)
+    h = math.sqrt(max(radius * radius - chord * chord / 4, 0.0))
+    mid = g.mul(g.add(a, b), 0.5)
+    perp = g.norm(g.cross((0.0, 0.0, 1.0), g.sub(b, a)))  # in the XY plane, left of a->b
+    sag = abs(radius) - h if short_sagitta else abs(radius) + h
+    side = 1.0 if radius > 0 else -1.0
+    return Edge.make_three_point_arc(a, g.add(mid, g.mul(perp, -side * sag)), b)
+
+
+# ---------------------------------------------------------------------------------------------
+# faces from curves; revolve, loft, sweep
+# ---------------------------------------------------------------------------------------------
+
+
+def _free_edges(obj) -> list:
+    if isinstance(obj, Wire):
+        return list(obj.edges())
+    if isinstance(obj, Edge):
+        return [obj]
+    if isinstance(obj, (list, tuple, ShapeList)):
+        return [e for o in obj for e in _free_edges(o)]
+    raise TypeError(f"expected edges or wires, got {type(obj).__name__}")
+
+
+def _chain(edges):
+    """Order free edges head to tail (reversing where needed); returns sample points along the loop."""
+    rest = list(edges)
+    first = rest.pop(0)
+    pts = [first.position_at(t / 8) for t in range(9)]
+    while rest:
+        end = pts[-1]
+        for i, e in enumerate(rest):
+            if (e.start_point() - end).length < 1e-6:
+                pts += [e.position_at(t / 8) for t in range(1, 9)]
+                break
+            if (e.end_point() - end).length < 1e-6:
+                pts += [e.position_at(1 - t / 8) for t in range(1, 9)]
+                break
+        else:
+            e = rest[0]
+            i = 0
+            pts += [e.position_at(t / 8) for t in range(9)]
+        rest.pop(i)
+    return [tuple(p) for p in pts]
+
+
+def _newell(points) -> tuple:
+    n = [0.0, 0.0, 0.0]
+    for p, q in zip(points, points[1:] + points[:1]):
+        n[0] += (p[1] - q[1]) * (p[2] + q[2])
+        n[1] += (p[2] - q[2]) * (p[0] + q[0])
+        n[2] += (p[0] - q[0]) * (p[1] + q[1])
+    return g.norm(tuple(n))
+
+
+def make_face(edges=None) -> Sketch:
+    """A planar face bounded by free edges (its normal follows the loop's direction)."""
+    if edges is None:
+        raise KeelError("make_face() inside BuildLine/BuildSketch is not supported yet; pass the edges")
+    es = _free_edges(edges)
+    if not es:
+        raise ValueError("make_face needs edges")
+    pts = _chain(es)
+    normal = _newell(pts)
+    center = tuple(sum(p[i] for p in pts) / len(pts) for i in range(3))
+    plane = Plane(center, None, normal)
+    sheet = call("make_face", ub.create_planar_faces, [e._free().build() for e in es])
+    return Sketch(_KSketch(plane.unplace(sheet), plane))
+
+
+def _sections(obj) -> list[_KSketch]:
+    return _sketches_of(obj)
+
+
+def revolve(profiles=None, axis: Axis = Axis.Z, revolution_arc: float = 360.0, clean: bool = True,
+            mode: Mode = Mode.ADD) -> Part:
+    builder = _innermost()
+    items = _sections(profiles)
+    if not items and isinstance(builder, BuildPart):
+        items, builder.pending = builder.pending, []
+    if not items:
+        raise ValueError("revolve needs a profile")
+    bodies = []
+    for it in items:
+        o = it.plane.to_local(axis.origin)
+        d = (g.dot(axis.dir, it.plane.x), g.dot(axis.dir, it.plane.y), g.dot(axis.dir, it.plane.z))
+        if abs(o[2]) > 1e-6 or abs(d[2]) > 1e-6:
+            raise KeelError("revolve: the axis must lie in the profile's plane")
+        bodies.append(it.revolve(revolution_arc, axis=((o[0], o[1]), (d[0], d[1]))))
+    if isinstance(builder, BuildPart):
+        builder._combine(list(bodies), mode)
+    return Part(bodies[0].fuse(*bodies[1:]) if len(bodies) > 1 else bodies[0])
+
+
+def loft(sections=None, ruled: bool = False, clean: bool = True, mode: Mode = Mode.ADD) -> Part:
+    builder = _innermost()
+    items = _sections(sections)
+    if not items and isinstance(builder, BuildPart):
+        items, builder.pending = builder.pending, []
+    body = _sk.loft(*items, smooth=not ruled)
+    if isinstance(builder, BuildPart):
+        builder._combine([body], mode)
+    return Part(body)
+
+
+def sweep(sections=None, path=None, multisection: bool = False, is_frenet: bool = False, transition=None,
+          normal=None, binormal=None, clean: bool = True, mode: Mode = Mode.ADD) -> Part:
+    """Sweep a profile along a path. The profile stays where it is (put it at the path start).
+
+    Exact for round profiles (a pipe) and for profiles centered on a planar path's start;
+    otherwise keel warns, because the kernel re-anchors the profile."""
+    import warnings
+
+    builder = _innermost()
+    items = _sections(sections)
+    if not items and isinstance(builder, BuildPart):
+        items, builder.pending = builder.pending, []
+    if len(items) != 1 or path is None:
+        raise KeelError("sweep needs one profile and a path")
+    item = items[0]
+    edges = _free_edges(path)
+    curves = [e._free().build() for e in edges]
+    start = tuple(edges[0].start_point())
+    loops = item._loop_curves()
+    if loops[0][1]:
+        raise KeelError("sweep profiles with holes are not supported yet")
+    radius = _sk._circle_radius(loops[0][0])
+    center = loops[0][0][0].center() if radius is not None else None
+    path_pts = [tuple(e.position_at(t / 6)) for e in edges for t in range(7)]
+    if radius is not None and g.dist(tuple(center), start) < 1e-6:
+        if len(curves) == 1:
+            single = curves[0] if type(curves[0]).__name__ != "Line" else _kpath._Line(*edges[0]._free().points).build_bspline()
+            body = call("sweep", ub.pipe_sweep, single, radius=radius)
+        else:
+            body = call("sweep", ub.sweep_along_planar_path, loops[0][0], curves, move_profile=True)
+    elif _kpath._coplanar(path_pts):
+        (lo, hi) = item._placed().bounding_box(True)
+        if g.dist(g.mul(g.add(lo, hi), 0.5), start) > 1e-6:
+            warnings.warn("sweep: the kernel centers the profile on the path start", stacklevel=2)
+        body = call("sweep", ub.sweep_along_planar_path, loops[0][0], curves, move_profile=True)
+    else:
+        warnings.warn("sweep: on a non-planar path the kernel anchors the profile's first point on the path",
+                      stacklevel=2)
+        body = call("sweep", ub.curve_sweep, loops[0][0], curves[0])
+    part = _KPart(body)
+    if isinstance(builder, BuildPart):
+        builder._combine([part], mode)
+    return Part(part)
 
 
 class Face:
+    def __new__(cls, *args, **kwargs):
+        # build123d's Face(wire) / Face(outer_wire, inner_wires) builds a planar face
+        if args and isinstance(args[0], (Wire, Edge, list, tuple)):
+            face = make_face(args[0])
+            for hole in (args[1] if len(args) > 1 else kwargs.get("inner_wires", [])) or []:
+                face = face - make_face(hole)
+            return face
+        return super().__new__(cls)
+
     def __init__(self, f: _KFace, owner: Shape | None = None):
         self._f = f
         self._owner = owner
+
+    def vertices(self) -> "ShapeList":
+        seen, out = set(), ShapeList()
+        for e in self._f.edges():
+            for pnt in (e.start, e.end):
+                key = tuple(round(c, 9) for c in pnt)
+                if key not in seen:
+                    seen.add(key)
+                    out.append(Vector(pnt))
+        return out
 
     @property
     def geom_type(self) -> GeomType:
@@ -832,7 +1238,9 @@ def _parallel(s, d, tol) -> bool:
 
 
 class Sketch:
-    """2D regions placed on planes (build123d's Sketch/Face for profiles)."""
+    """Planar regions placed on planes (build123d's Sketch and Face, for profiles).
+
+    Each item is a keel Sketch: a region in a plane's local XY plus that plane."""
 
     def __init__(self, items: Sequence[_KSketch] | _KSketch | None = None):
         self._items = [items] if isinstance(items, _KSketch) else list(items or [])
@@ -844,8 +1252,55 @@ class Sketch:
     def moved(self, loc: Location) -> "Sketch":
         return Sketch([s.on(_plane_moved(s.plane, loc)) for s in self._items])
 
+    located = moved
+
+    def faces(self) -> "ShapeList":
+        return ShapeList(Sketch(s) for s in self._items)
+
+    def _boolean(self, other: "Sketch", op: str) -> "Sketch":
+        if isinstance(other, (list, tuple)):
+            out = self
+            for o in _flatten(other):
+                out = out._boolean(o, op)
+            return out
+        if not isinstance(other, Sketch):
+            return NotImplemented
+        if not self._items:
+            return other if op == "+" else self
+        result = list(self._items)
+        leftovers = []
+        for b in other._items:
+            for i, a in enumerate(result):
+                if _coplanar(a.plane, b.plane):
+                    moved_b = _KSketch(a.plane.unplace(b.plane.place(b._sheet.copy())), a.plane)
+                    result[i] = {"+": a + moved_b, "-": a - moved_b, "&": a & moved_b}[op]
+                    break
+            else:
+                if op == "+":
+                    leftovers.append(b)
+        return Sketch(result + leftovers)
+
     def __add__(self, other):
-        return Sketch(self._items + other._items)
+        return self._boolean(other, "+")
+
+    def __sub__(self, other):
+        return self._boolean(other, "-")
+
+    def __and__(self, other):
+        return self._boolean(other, "&")
+
+    def __radd__(self, other):
+        return self if other == 0 or other is None else NotImplemented
+
+    def mirror(self, about: "Plane | None" = None) -> "Sketch":
+        raise KeelError("mirroring sketches is not supported yet; mirror the curves before make_face")
+
+    def __repr__(self):
+        return f"<Sketch regions={len(self._items)} area={self.area:.6g}>"
+
+
+def _coplanar(p: g.Plane, q: g.Plane, tol: float = 1e-7) -> bool:
+    return abs(abs(g.dot(p.z, q.z)) - 1) < tol and abs(g.dot(g.sub(q.origin, p.origin), p.z)) < tol * max(1.0, g.length(p.origin))
 
 
 def _plane_moved(p: g.Plane, loc: Location) -> Plane:
@@ -1147,8 +1602,8 @@ def _sketches_of(obj) -> list[_KSketch]:
 
 def extrude(to_extrude=None, amount: float | None = None, dir=None, until=None, target=None,  # noqa: A002
             both: bool = False, taper: float = 0.0, clean: bool = True, mode: Mode = Mode.ADD) -> Part:
-    if dir is not None or until is not None:
-        raise KeelError("extrude(dir=..., until=...) is not supported yet")
+    if until is not None:
+        raise KeelError("extrude(until=...) is not supported yet")
     builder = _innermost()
     sketches = _sketches_of(to_extrude)
     if not sketches and isinstance(builder, BuildPart):
@@ -1157,10 +1612,26 @@ def extrude(to_extrude=None, amount: float | None = None, dir=None, until=None, 
         raise ValueError("extrude needs a sketch")
     if amount is None:
         raise ValueError("extrude needs an amount")
-    bodies = [s.extrude(amount, both=both, taper=taper) for s in sketches]
+    if dir is not None:
+        if taper:
+            raise KeelError("extrude(dir=..., taper=...) is not supported yet")
+        bodies = [_extrude_along(sk, tuple(Vector(dir)), amount, both) for sk in sketches]
+    else:
+        bodies = [s.extrude(amount, both=both, taper=taper) for s in sketches]
     if isinstance(builder, BuildPart):
         builder._combine(list(bodies), mode)
     return Part(bodies[0].fuse(*bodies[1:]) if len(bodies) > 1 else bodies[0])
+
+
+def _extrude_along(sk: _KSketch, direction, amount: float, both: bool) -> _KPart:
+    d = g.norm(direction)
+    if amount < 0:
+        d, amount = g.mul(d, -1), -amount
+    sheet = sk._placed()
+    if both:
+        ub.translate(sheet, g.mul(d, -amount))
+        amount *= 2
+    return _KPart(call("extrude", ub.non_manifold_linear_sweep, sheet, d, amount, faces=sheet.faces()))
 
 
 def add(objects, rotation=None, clean: bool = True, mode: Mode = Mode.ADD):
@@ -1220,7 +1691,7 @@ def mirror(objects=None, about: Plane = Plane.XZ, mode: Mode = Mode.ADD):
     shapes = _flatten(objects if isinstance(objects, (list, tuple)) else [objects])
     mirrored = [s.mirror(about) for s in shapes]
     if isinstance(builder, BuildPart):
-        builder._combine([p for m in mirrored for p in m._parts], mode)
+        builder._combine([p for m in mirrored if isinstance(m, Shape) for p in m._parts], mode)
     return mirrored[0] if len(mirrored) == 1 else mirrored
 
 
@@ -1230,4 +1701,6 @@ __all__ = [
     "Plane", "PolarLocations", "Polygon", "Pos", "Rectangle", "RectangleRounded", "RegularPolygon", "Rot",
     "Rotation", "Shape", "ShapeList", "Sketch", "SlotCenterToCenter", "SlotOverall", "Solid", "SortBy", "Sphere",
     "Torus", "Vector", "Vertex", "add", "chamfer", "extrude", "fillet", "mirror",
+    "Bezier", "CenterArc", "Line", "Polyline", "RadiusArc", "Spline", "ThreePointArc", "Wire",
+    "loft", "make_face", "revolve", "sweep",
 ]

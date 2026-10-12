@@ -1,0 +1,123 @@
+[
+ {
+  "model": "bracelet",
+  "function": "bracelet",
+  "status": "crash",
+  "error": "timeout"
+ },
+ {
+  "model": "case",
+  "function": "case",
+  "status": "error",
+  "error": "KeelError: cut failed: the kernel returned an impossible result (volumes 345.577, 0.54798 -> 345.997). This usually means the parts share coincident faces the kernel can't resolve; overlap them by a small amount or build the shape another way.",
+  "where": [
+   "part.py:121 return self._boolean(ub.boolean_difference, \"cut\", others)",
+   "part.py:133 _check_boolean(name, before, other._brep, result)",
+   "part.py:389 raise KeelError("
+  ]
+ },
+ {
+  "model": "chrono_works",
+  "function": "chrono_works",
+  "status": "error",
+  "error": "TypeError: unsupported operand type(s) for +: 'Sketch' and 'list'",
+  "where": [
+   "chrono_works.py:17 return bd.Compound(children=C.build_chrono(), label=\"chronograph_works\")",
+   "mvt_chrono.py:864 parts += _column_wheel_parts()",
+   "mvt_chrono.py:370 star2d = bd.Polygon(*pts, align=None) + [bd.Circle(STAR_ROOT_R + 0.01)]"
+  ]
+ },
+ {
+  "model": "dial",
+  "function": "dial",
+  "status": "error",
+  "error": "TypeError: unsupported operand type(s) for +: 'Sketch' and 'list'",
+  "where": [
+   "dial.py:445 parts += build_indices()",
+   "dial.py:198 outer_sk = _fuse(frame_out)",
+   "dial.py:88 return shapes[0] + shapes[1:] if len(shapes) > 1 else shapes[0]"
+  ]
+ },
+ {
+  "model": "finishing_sampler",
+  "function": "finishing_sampler",
+  "status": "error",
+  "error": "TypeError: unsupported operand type(s) for +: 'Sketch' and 'list'",
+  "where": [
+   "finishing_sampler.py:48 snailed = F.train_wheel(48, 9.0, web_thickness=0.4, spoke_count=0, color=S.GILT)",
+   "finishing.py:335 profile = bd.Circle(r_root) + ["
+  ]
+ },
+ {
+  "model": "keyless_works",
+  "function": "keyless_works",
+  "status": "error",
+  "error": "TypeError: unsupported operand type(s) for +: 'Sketch' and 'list'",
+  "where": [
+   "mvt_keyless.py:314 lever_prof = _chain((",
+   "mvt_keyless.py:146 return _fuse2d(pieces, clip_r)",
+   "mvt_keyless.py:111 prof = pieces[0] + pieces[1:] if len(pieces) > 1 else pieces[0]"
+  ]
+ },
+ {
+  "model": "moonwatch",
+  "function": null,
+  "status": "error",
+  "error": "AttributeError: module 'cadgen' has no attribute 'revolute'"
+ },
+ {
+  "model": "movement",
+  "function": "chrono_works",
+  "status": "error",
+  "error": "TypeError: unsupported operand type(s) for +: 'Sketch' and 'list'",
+  "where": [
+   "chrono_works.py:17 return bd.Compound(children=C.build_chrono(), label=\"chronograph_works\")",
+   "mvt_chrono.py:864 parts += _column_wheel_parts()",
+   "mvt_chrono.py:370 star2d = bd.Polygon(*pts, align=None) + [bd.Circle(STAR_ROOT_R + 0.01)]"
+  ]
+ },
+ {
+  "model": "movement",
+  "function": "keyless_works",
+  "status": "error",
+  "error": "TypeError: unsupported operand type(s) for +: 'Sketch' and 'list'",
+  "where": [
+   "mvt_keyless.py:314 lever_prof = _chain((",
+   "mvt_keyless.py:146 return _fuse2d(pieces, clip_r)",
+   "mvt_keyless.py:111 prof = pieces[0] + pieces[1:] if len(pieces) > 1 else pieces[0]"
+  ]
+ },
+ {
+  "model": "movement",
+  "function": "movement_base",
+  "status": "error",
+  "error": "TypeError: unsupported operand type(s) for +: 'Sketch' and 'list'",
+  "where": [
+   "mvt_base.py:1376 parts += _barrel_parts()",
+   "mvt_base.py:863 flange = bd.Rot(0, 0, rot_flange) * F.train_wheel(",
+   "finishing.py:335 profile = bd.Circle(r_root) + ["
+  ]
+ },
+ {
+  "model": "movement",
+  "function": "movement",
+  "status": "error",
+  "error": "TypeError: unsupported operand type(s) for +: 'Sketch' and 'list'",
+  "where": [
+   "mvt_base.py:1376 parts += _barrel_parts()",
+   "mvt_base.py:863 flange = bd.Rot(0, 0, rot_flange) * F.train_wheel(",
+   "finishing.py:335 profile = bd.Circle(r_root) + ["
+  ]
+ },
+ {
+  "model": "movement_base",
+  "function": "movement_base",
+  "status": "error",
+  "error": "TypeError: unsupported operand type(s) for +: 'Sketch' and 'list'",
+  "where": [
+   "mvt_base.py:1376 parts += _barrel_parts()",
+   "mvt_base.py:863 flange = bd.Rot(0, 0, rot_flange) * F.train_wheel(",
+   "finishing.py:335 profile = bd.Circle(r_root) + ["
+  ]
+ }
+]

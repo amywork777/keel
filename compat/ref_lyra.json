@@ -1,0 +1,365 @@
+[
+ {
+  "model": "index_distal",
+  "function": "index_distal",
+  "seconds": 2.96,
+  "volume": 1761.6227592367754,
+  "bbox": [
+   [
+    -5.3000001,
+    -5.600000100000001,
+    -5.600000100000001
+   ],
+   [
+    5.3000001,
+    5.7000001000000005,
+    23.0
+   ]
+  ],
+  "solids": 3,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "index_middle",
+  "function": "index_middle",
+  "seconds": 4.256,
+  "volume": 3019.518657053958,
+  "bbox": [
+   [
+    -8.4,
+    -6.4,
+    -6.400000000000001
+   ],
+   [
+    8.400000000000002,
+    7.199999999999999,
+    31.8
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "index_proximal",
+  "function": "index_proximal",
+  "seconds": 3.29,
+  "volume": 6477.198000553069,
+  "bbox": [
+   [
+    -9.2,
+    -7.2,
+    -7.200000000000001
+   ],
+   [
+    9.2,
+    7.700000000000001,
+    50.5
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "lyra",
+  "function": null,
+  "status": "skipped",
+  "error": "harness: cadgen.assembly (mates/joints) is not part of this comparison"
+ },
+ {
+  "model": "middle_distal",
+  "function": "middle_distal",
+  "seconds": 2.771,
+  "volume": 1989.4488067163168,
+  "bbox": [
+   [
+    -5.4590001,
+    -5.768000100000001,
+    -5.768000100000002
+   ],
+   [
+    5.4590001,
+    5.8710001,
+    24.5
+   ]
+  ],
+  "solids": 3,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "middle_middle",
+  "function": "middle_middle",
+  "seconds": 2.648,
+  "volume": 3592.7517374125896,
+  "bbox": [
+   [
+    -8.598,
+    -6.5920000000000005,
+    -6.592000000000001
+   ],
+   [
+    8.598000000000003,
+    7.377000000000001,
+    34.974000000000004
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "middle_proximal",
+  "function": "middle_proximal",
+  "seconds": 2.606,
+  "volume": 7504.201364888185,
+  "bbox": [
+   [
+    -9.421999999999999,
+    -7.416,
+    -7.416000000000001
+   ],
+   [
+    9.421999999999999,
+    7.892000000000001,
+    54.695
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "palm",
+  "function": "palm",
+  "seconds": 3.438,
+  "volume": 123978.3394929865,
+  "bbox": [
+   [
+    -37.800000000000004,
+    -23.0,
+    0.0
+   ],
+   [
+    42.2,
+    23.0,
+    111.24
+   ]
+  ],
+  "solids": 32,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "pinky_distal",
+  "function": "pinky_distal",
+  "seconds": 2.612,
+  "volume": 1211.232286339619,
+  "bbox": [
+   [
+    -4.6640001,
+    -4.928000100000001,
+    -4.928000100000001
+   ],
+   [
+    4.6640001,
+    5.0160001,
+    20.5
+   ]
+  ],
+  "solids": 3,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "pinky_middle",
+  "function": "pinky_middle",
+  "seconds": 2.62,
+  "volume": 1909.7999629265055,
+  "bbox": [
+   [
+    -7.608,
+    -5.632000000000001,
+    -5.6320000000000014
+   ],
+   [
+    7.608,
+    6.492000000000001,
+    26.104
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "pinky_proximal",
+  "function": "pinky_proximal",
+  "seconds": 2.83,
+  "volume": 4004.859938933182,
+  "bbox": [
+   [
+    -8.312000000000001,
+    -6.336,
+    -6.336000000000001
+   ],
+   [
+    8.312000000000003,
+    6.932,
+    40.72
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "ring_distal",
+  "function": "ring_distal",
+  "seconds": 2.716,
+  "volume": 1689.9125687952653,
+  "bbox": [
+   [
+    -5.1410001,
+    -5.432000100000001,
+    -5.432000100000001
+   ],
+   [
+    5.1410001,
+    5.5290001,
+    23.5
+   ]
+  ],
+  "solids": 3,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "ring_middle",
+  "function": "ring_middle",
+  "seconds": 2.662,
+  "volume": 2970.707655885777,
+  "bbox": [
+   [
+    -8.202,
+    -6.208,
+    -6.208000000000001
+   ],
+   [
+    8.202000000000002,
+    7.023,
+    32.626
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "ring_proximal",
+  "function": "ring_proximal",
+  "seconds": 2.632,
+  "volume": 6101.782663844067,
+  "bbox": [
+   [
+    -8.977999999999998,
+    -6.984,
+    -6.984000000000001
+   ],
+   [
+    8.977999999999998,
+    7.508000000000001,
+    50.305
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "thumb_base",
+  "function": "thumb_base",
+  "seconds": 2.635,
+  "volume": 3615.824678419246,
+  "bbox": [
+   [
+    -8.8,
+    -9.6,
+    -7.0000001
+   ],
+   [
+    20.0000001,
+    9.6,
+    7.0000001
+   ]
+  ],
+  "solids": 4,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "thumb_distal",
+  "function": "thumb_distal",
+  "seconds": 2.634,
+  "volume": 1891.1339417339366,
+  "bbox": [
+   [
+    -5.2000001000000005,
+    -5.400000100000001,
+    -5.200000100000001
+   ],
+   [
+    24.0,
+    5.400000100000001,
+    5.800000099999999
+   ]
+  ],
+  "solids": 3,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "thumb_metacarpal",
+  "function": "thumb_metacarpal",
+  "seconds": 2.575,
+  "volume": 6932.298489483019,
+  "bbox": [
+   [
+    -6.8,
+    -9.2,
+    -6.800000000000001
+   ],
+   [
+    52.4,
+    9.2,
+    8.3
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "thumb_proximal",
+  "function": "thumb_proximal",
+  "seconds": 2.769,
+  "volume": 3616.9672570114217,
+  "bbox": [
+   [
+    -6.2,
+    -8.5,
+    -6.200000000000001
+   ],
+   [
+    35.6,
+    8.5,
+    7.600000000000001
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ }
+]

@@ -8,7 +8,7 @@
  {
   "model": "cam_follower_roller",
   "function": "cam_follower_roller",
-  "seconds": 0.163,
+  "seconds": 0.146,
   "volume": 12248.494450978718,
   "bbox": [
    [
@@ -29,7 +29,7 @@
  {
   "model": "centrifugal_impeller",
   "function": "centrifugal_impeller",
-  "seconds": 25.078,
+  "seconds": 22.602,
   "volume": 67119.09562549028,
   "bbox": [
    [
@@ -50,7 +50,7 @@
  {
   "model": "circular_flange",
   "function": "circular_flange",
-  "seconds": 0.259,
+  "seconds": 0.264,
   "volume": 41259.781815675735,
   "bbox": [
    [
@@ -71,7 +71,7 @@
  {
   "model": "clevis_bracket_lightening_cutouts",
   "function": "clevis_bracket_lightening_cutouts",
-  "seconds": 0.435,
+  "seconds": 0.437,
   "volume": 105943.6602394739,
   "bbox": [
    [
@@ -92,7 +92,7 @@
  {
   "model": "cylindrical_cap",
   "function": "cylindrical_cap",
-  "seconds": 0.212,
+  "seconds": 0.392,
   "volume": 16192.295767227542,
   "bbox": [
    [
@@ -113,7 +113,7 @@
  {
   "model": "cylindrical_spacer_sleeve",
   "function": "cylindrical_spacer_sleeve",
-  "seconds": 0.155,
+  "seconds": 0.24,
   "volume": 17527.654353207912,
   "bbox": [
    [
@@ -134,7 +134,7 @@
  {
   "model": "electronics_enclosure_base",
   "function": "electronics_enclosure_base",
-  "seconds": 0.239,
+  "seconds": 0.494,
   "volume": 51008.70718842668,
   "bbox": [
    [
@@ -161,7 +161,7 @@
  {
   "model": "flywheel_disk",
   "function": "flywheel_disk",
-  "seconds": 2.038,
+  "seconds": 3.597,
   "volume": 54698.372195947966,
   "bbox": [
    [
@@ -182,7 +182,7 @@
  {
   "model": "gusset_plate",
   "function": "gusset_plate",
-  "seconds": 0.737,
+  "seconds": 0.779,
   "volume": 19981.320331711693,
   "bbox": [
    [
@@ -203,8 +203,8 @@
  {
   "model": "keyed_shaft_hub",
   "function": "keyed_shaft_hub",
-  "seconds": 1.086,
-  "volume": 40488.591853687205,
+  "seconds": 1.907,
+  "volume": 40489.255207334296,
   "bbox": [
    [
     -26.999999982232644,
@@ -224,7 +224,7 @@
  {
   "model": "l_bracket",
   "function": "l_bracket",
-  "seconds": 0.222,
+  "seconds": 0.291,
   "volume": 70322.68917350643,
   "bbox": [
    [
@@ -245,7 +245,7 @@
  {
   "model": "mounting_plate",
   "function": "mounting_plate",
-  "seconds": 6.778,
+  "seconds": 6.336,
   "volume": 48221.87791417226,
   "bbox": [
    [
@@ -266,7 +266,7 @@
  {
   "model": "open_top_electronics_enclosure",
   "function": "open_top_electronics_enclosure",
-  "seconds": 0.255,
+  "seconds": 0.233,
   "volume": 51008.70718842668,
   "bbox": [
    [
@@ -299,7 +299,7 @@
  {
   "model": "pulley_wheel",
   "function": "pulley_wheel",
-  "seconds": 1.76,
+  "seconds": 1.15,
   "volume": 63267.92434489864,
   "bbox": [
    [
@@ -320,7 +320,7 @@
  {
   "model": "radial_engine_cylinder",
   "function": "radial_engine_cylinder",
-  "seconds": 23.27,
+  "seconds": 23.956,
   "volume": 154249.71637925573,
   "bbox": [
    [
@@ -341,7 +341,7 @@
  {
   "model": "recognition_fixture",
   "function": "recognition_fixture",
-  "seconds": 0.149,
+  "seconds": 0.264,
   "volume": 13705.859052066235,
   "bbox": [
    [
@@ -362,7 +362,7 @@
  {
   "model": "rectangular_calibration_block",
   "function": "rectangular_calibration_block",
-  "seconds": 0.207,
+  "seconds": 0.236,
   "volume": 115349.43515459582,
   "bbox": [
    [
@@ -383,7 +383,7 @@
  {
   "model": "rectangular_clamp_block",
   "function": "rectangular_clamp_block",
-  "seconds": 1.507,
+  "seconds": 1.743,
   "volume": 57156.67946423744,
   "bbox": [
    [
@@ -404,8 +404,8 @@
  {
   "model": "retainer_plate",
   "function": "retainer_plate",
-  "seconds": 1.525,
-  "volume": 14027.02560465896,
+  "seconds": 1.542,
+  "volume": 14027.034121071112,
   "bbox": [
    [
     -41.0,
@@ -425,12 +425,12 @@
  {
   "model": "shaft_collar",
   "function": "shaft_collar",
-  "seconds": 0.312,
-  "volume": 16799.18840168949,
+  "seconds": 0.297,
+  "volume": 16799.30821864809,
   "bbox": [
    [
-    -20.999999996751445,
-    -20.999999996996568,
+    -20.99999999675145,
+    -20.999999996996564,
     0.0
    ],
    [
@@ -446,7 +446,7 @@
  {
   "model": "small_enclosure_cover",
   "function": "small_enclosure_cover",
-  "seconds": 3.854,
+  "seconds": 3.851,
   "volume": 20024.19033502761,
   "bbox": [
    [
@@ -467,8 +467,8 @@
  {
   "model": "spur_gear_blank",
   "function": "spur_gear_blank",
-  "seconds": 1.844,
-  "volume": 44825.32032455481,
+  "seconds": 1.804,
+  "volume": 44825.11453542572,
   "bbox": [
    [
     -38.87163197406789,
@@ -488,7 +488,7 @@
  {
   "model": "square_mounting_block",
   "function": "square_mounting_block",
-  "seconds": 0.406,
+  "seconds": 0.396,
   "volume": 58908.481641875645,
   "bbox": [
    [
@@ -509,8 +509,8 @@
  {
   "model": "stepped_shaft_keyway",
   "function": "stepped_shaft_keyway",
-  "seconds": 0.201,
-  "volume": 60504.4362533223,
+  "seconds": 0.191,
+  "volume": 60504.48949590293,
   "bbox": [
    [
     -1.027696881586254e-15,
@@ -518,7 +518,7 @@
     -15.000000000000004
    ],
    [
-    120.00000000000003,
+    120.00000000000004,
     15.0,
     15.000000000000002
    ]
@@ -530,7 +530,7 @@
  {
   "model": "t_slot_slider_block",
   "function": "t_slot_slider_block",
-  "seconds": 0.175,
+  "seconds": 0.164,
   "volume": 32463.23168441386,
   "bbox": [
    [

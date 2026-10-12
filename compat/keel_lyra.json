@@ -1,0 +1,355 @@
+[
+ {
+  "model": "index_distal",
+  "function": "index_distal",
+  "seconds": 0.336,
+  "volume": 1761.6245072313684,
+  "bbox": [
+   [
+    -5.3,
+    -5.6,
+    -5.6
+   ],
+   [
+    5.3,
+    5.7,
+    23.0
+   ]
+  ],
+  "solids": 3,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "index_middle",
+  "function": "index_middle",
+  "seconds": 0.953,
+  "volume": 3018.613296346649,
+  "bbox": [
+   [
+    -8.400000000000002,
+    -6.4,
+    -6.4
+   ],
+   [
+    8.400000000000002,
+    7.200000000000008,
+    31.8
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "index_proximal",
+  "function": "index_proximal",
+  "seconds": 1.122,
+  "volume": 6475.933106549955,
+  "bbox": [
+   [
+    -9.2,
+    -7.2,
+    -7.2
+   ],
+   [
+    9.200000000000001,
+    7.700000000000002,
+    50.5
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "lyra",
+  "function": null,
+  "status": "skipped",
+  "error": "harness: cadgen.assembly (mates/joints) is not part of this comparison"
+ },
+ {
+  "model": "middle_distal",
+  "function": "middle_distal",
+  "seconds": 0.328,
+  "volume": 1989.450613564756,
+  "bbox": [
+   [
+    -5.459,
+    -5.768,
+    -5.768
+   ],
+   [
+    5.459,
+    5.8709999999999996,
+    24.5
+   ]
+  ],
+  "solids": 3,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "middle_middle",
+  "function": "middle_middle",
+  "seconds": 1.053,
+  "volume": 3591.8095082342475,
+  "bbox": [
+   [
+    -8.598000000000003,
+    -6.5920000000000005,
+    -6.5920000000000005
+   ],
+   [
+    8.598000000000004,
+    7.3770000000000024,
+    34.974000000000004
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "middle_proximal",
+  "function": "middle_proximal",
+  "seconds": 0.89,
+  "volume": 7502.893612551377,
+  "bbox": [
+   [
+    -9.422000000000002,
+    -7.416,
+    -7.416
+   ],
+   [
+    9.422000000000004,
+    7.892000000000008,
+    54.695
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "palm",
+  "function": "palm",
+  "status": "error",
+  "error": "KeelError: extrude(dir=..., until=...) is not supported yet",
+  "where": [
+   "palm.py:137 core = _outline_solid(CORE_PTS, -SLAB_HALF_Y, 2 * SLAB_HALF_Y)",
+   "palm.py:85 return bd.extrude(face, amount=depth, dir=(0, 1, 0))",
+   "build123d.py:1555 raise KeelError(\"extrude(dir=..., until=...) is not supported yet\")"
+  ]
+ },
+ {
+  "model": "pinky_distal",
+  "function": "pinky_distal",
+  "seconds": 0.256,
+  "volume": 1211.2319538205957,
+  "bbox": [
+   [
+    -4.664,
+    -4.928,
+    -4.928000000000001
+   ],
+   [
+    4.664,
+    5.016,
+    20.5
+   ]
+  ],
+  "solids": 3,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "pinky_middle",
+  "function": "pinky_middle",
+  "seconds": 0.948,
+  "volume": 1909.0462720961625,
+  "bbox": [
+   [
+    -7.6080000000000005,
+    -5.632000000000001,
+    -5.632000000000001
+   ],
+   [
+    7.6080000000000005,
+    6.492,
+    26.104
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "pinky_proximal",
+  "function": "pinky_proximal",
+  "seconds": 1.545,
+  "volume": 4003.7860786340316,
+  "bbox": [
+   [
+    -8.312000000000003,
+    -6.336,
+    -6.336
+   ],
+   [
+    8.312000000000003,
+    6.932000000000001,
+    40.72
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "ring_distal",
+  "function": "ring_distal",
+  "seconds": 0.438,
+  "volume": 1689.9130206587888,
+  "bbox": [
+   [
+    -5.141,
+    -5.4319999999999995,
+    -5.4319999999999995
+   ],
+   [
+    5.141,
+    5.529,
+    23.500000000000004
+   ]
+  ],
+  "solids": 3,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "ring_middle",
+  "function": "ring_middle",
+  "seconds": 1.705,
+  "volume": 2969.8392583210884,
+  "bbox": [
+   [
+    -8.202000000000002,
+    -6.208,
+    -6.208
+   ],
+   [
+    8.202000000000004,
+    7.023000000000009,
+    32.626
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "ring_proximal",
+  "function": "ring_proximal",
+  "seconds": 1.461,
+  "volume": 6100.561346935087,
+  "bbox": [
+   [
+    -8.978,
+    -6.984,
+    -6.984
+   ],
+   [
+    8.978,
+    7.508000000000004,
+    50.305
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "thumb_base",
+  "function": "thumb_base",
+  "seconds": 0.707,
+  "volume": 3615.3977256815815,
+  "bbox": [
+   [
+    -8.8,
+    -9.600000000000001,
+    -7.000000000000001
+   ],
+   [
+    20.000000000000004,
+    9.600000000000001,
+    7.0
+   ]
+  ],
+  "solids": 4,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "thumb_distal",
+  "function": "thumb_distal",
+  "seconds": 0.391,
+  "volume": 1891.1361762676286,
+  "bbox": [
+   [
+    -5.2,
+    -5.4,
+    -5.2
+   ],
+   [
+    24.0,
+    5.4,
+    5.800000000000001
+   ]
+  ],
+  "solids": 3,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "thumb_metacarpal",
+  "function": "thumb_metacarpal",
+  "seconds": 1.689,
+  "volume": 6932.305886012878,
+  "bbox": [
+   [
+    -6.8,
+    -9.200000000000003,
+    -6.8
+   ],
+   [
+    52.4,
+    9.2,
+    8.300000000000006
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "thumb_proximal",
+  "function": "thumb_proximal",
+  "seconds": 2.167,
+  "volume": 3616.9691781714573,
+  "bbox": [
+   [
+    -6.2,
+    -8.500000000000002,
+    -6.2
+   ],
+   [
+    35.6,
+    8.500000000000004,
+    7.600000000000005
+   ]
+  ],
+  "solids": 6,
+  "valid": true,
+  "status": "ok"
+ }
+]
