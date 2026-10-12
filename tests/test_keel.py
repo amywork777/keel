@@ -309,3 +309,12 @@ def test_loft_sections_are_aligned_not_twisted():
     assert close(p.volume, hexagon.area * 20)
     q = loft(Circle(5), RegularPolygon(5, 4, rotation=45).on(Plane.XY.offset(10)), Circle(5).on(Plane.XY.offset(20)))
     assert q.is_valid
+
+
+def test_loft_polygon_to_circle_is_not_twisted():
+    # hexagon (corner on +X) to circle of the same circumradius. Untwisted, the mid-height
+    # slice is widest along X (corner direction); a twisted loft turns that bulge away.
+    p = loft(RegularPolygon(10, 6), Circle(10).on(Plane.XY.offset(20)))
+    mid = p & Box(40, 40, 0.5).move(0, 0, 10)
+    size = mid.bbox.size
+    assert size[0] > size[1] + 0.5

@@ -136,7 +136,7 @@ Files are written by NVIDIA's own exporter, so anything that reads usd-brep's sc
 - `Part.volume` and `Sketch.area` are measured to ~1e-6. The kernel's quick `volume()` can be
   0.1–0.7% off. `Part.area` is ~1e-4, the kernel's finest. `Part.bbox` is the tight box of the
   trimmed geometry.
-- Lofts line up each section's start point with the first section's, so circle → polygon → circle doesn't twist.
+- Lofts line up sections before skinning: polygon loops start at the corner nearest the first section's start, and circles are split into exact arcs at the polygon's corner angles, so circle → polygon → circle doesn't twist.
 - Not available yet: text, STEP import/export, and per-edge variable fillets.
 
 ## Testing
@@ -144,7 +144,7 @@ Files are written by NVIDIA's own exporter, so anything that reads usd-brep's sc
 `bin/keel -m pytest tests` runs the unit tests, checked against analytic volumes to 1e-4.
 `cd gallery && ../bin/keel gallery.py` builds 12 realistic parts, checks each is valid and
 survives a USD round trip, and writes STL/USD. `render.py` there draws them all into
-`gallery/out/gallery.png`.
+`gallery/out/gallery.png`, using a small z-buffer renderer with smooth shading and edge outlines.
 
 ## Layout
 

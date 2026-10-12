@@ -282,38 +282,75 @@ def sweep(sketch: Sketch, path) -> Part:
 def loft(*sketches: Sketch, smooth: bool = False) -> Part:
     """Skin a solid through single-region sketches (each placed with ``.on``).
 
-    The kernel joins each section's loop start to the next one's, so keel first lines
-    every section's start up with the first section's (rotating polygon loops, or turning
-    single-curve loops like circles about their center) to avoid a twisted result.
+    The kernel joins section loops curve-for-curve from their start points, so keel lines
+    sections up first: polygon loops are rotated to start nearest the first section's start,
+    and circles are split into arcs at the polygon's corner angles (otherwise the kernel
+    splits them its own way and the loft twists).
     """
     sketches = list(sketches[0]) if len(sketches) == 1 and isinstance(sketches[0], (list, tuple)) else list(sketches)
     if len(sketches) < 2:
         raise ValueError("loft needs at least two sketches")
-    counts, curves, ref = [], [], None
+    sections = []  # (sketch, center_world, loop curves)
     for s in sketches:
         placed = s._placed()
         if placed.face_count() != 1:
             raise KeelError("loft sections must be single regions")
-        face = placed.faces()[0]
-        center = tuple(face.centroid())
         loops = s._loop_curves()
         if loops[0][1]:
             raise KeelError("loft sections must not have holes")
-        loop = loops[0][0]
-        if ref is None:
-            ref = g.norm(g.sub(tuple(loop[0].start_point()), center))
-        elif len(loop) == 1:
-            start_dir = g.norm(g.sub(tuple(loop[0].start_point()), center))
-            angle = math.degrees(math.atan2(g.dot(g.cross(start_dir, ref), s.plane.z), g.dot(start_dir, ref)))
-            if abs(angle) > 1e-9:
-                loop = s.on(s.plane.rotated(0)).rotate(angle)._loop_curves()[0][0]
-        else:
-            def misalign(i):
-                d = g.norm(g.sub(tuple(loop[i].start_point()), center))
-                return -g.dot(d, ref)
-            k = min(range(len(loop)), key=misalign)
+        sections.append((s, tuple(placed.faces()[0].centroid()), loops[0][0]))
+
+    # reference direction: the first section's start, as an angle in its own plane
+    s0, c0, loop0 = sections[0]
+    ref_local = s0.plane.to_local(tuple(loop0[0].start_point()))
+    c0_local = s0.plane.to_local(c0)
+    ref_angle = math.atan2(ref_local[1] - c0_local[1], ref_local[0] - c0_local[0])
+
+    def local_angle(s, center, point):
+        p, c = s.plane.to_local(point), s.plane.to_local(center)
+        return math.atan2(p[1] - c[1], p[0] - c[0])
+
+    aligned = []
+    for s, center, loop in sections:
+        if len(loop) > 1:  # rotate so the loop starts at the corner closest to the reference angle
+            def miss(i):
+                d = local_angle(s, center, tuple(loop[i].start_point())) - ref_angle
+                return abs(math.atan2(math.sin(d), math.cos(d)))
+            k = min(range(len(loop)), key=miss)
             loop = loop[k:] + loop[:k]
+        aligned.append((s, center, loop))
+
+    # corner angles of the first multi-curve section, used to split circle sections
+    corners = None
+    for s, center, loop in aligned:
+        if len(loop) > 1:
+            corners = [local_angle(s, center, tuple(c.start_point())) for c in loop]
+            break
+
+    counts, curves = [], []
+    for s, center, loop in aligned:
+        if len(loop) == 1:
+            r = _circle_radius(loop)
+            if r is not None:
+                angles = corners if corners is not None else [ref_angle]
+                loop = _circle_arcs(s.plane, s.plane.to_local(center), r, angles)
         counts.append(len(loop))
         curves += loop
     degree = min(3, len(sketches) - 1) if smooth else 1
     return Part(call("loft", ub.create_skin_primitive, counts, curves, degree))
+
+
+def _circle_arcs(plane: Plane, center_local, radius: float, angles_rad) -> list:
+    """A full circle as counter-clockwise arcs starting at each angle (exact), placed on ``plane``."""
+    degs = [math.degrees(a) for a in angles_rad]
+    if len(degs) == 1:
+        # one full turn: two half arcs keep the kernel's arc constructor happy
+        degs = [degs[0], degs[0] + 180.0]
+    out = []
+    c = (center_local[0], center_local[1], 0.0)
+    for i, a0 in enumerate(degs):
+        a1 = degs[(i + 1) % len(degs)]
+        while a1 <= a0:
+            a1 += 360.0
+        out.append(plane.place(ub.create_arc(c, radius, a0, a1)))
+    return out
