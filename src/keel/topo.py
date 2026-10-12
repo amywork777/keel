@@ -104,6 +104,11 @@ class Edge(_Topo):
         return g.norm(g.sub(self.end, self.start))
 
     @property
+    def is_seam(self) -> bool:
+        """True where a periodic surface (cylinder, sphere, ...) meets itself."""
+        return len(self._h.faces()) == 1
+
+    @property
     def is_closed(self) -> bool:
         return g.dist(self.start, self.end) < 1e-9
 
@@ -161,6 +166,8 @@ class Face(_Topo):
         index = {_edge_key(e): i for i, e in enumerate(owner_edges)}
         out = []
         for e in self._h.edges():
+            if len(e.faces()) == 1:  # seam: see Part.edges
+                continue
             i = index.get(_edge_key(e))
             out.append(Edge(e, self._owner, i if i is not None else -1))
         return Selection(out)

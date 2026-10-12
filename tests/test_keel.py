@@ -318,3 +318,11 @@ def test_loft_polygon_to_circle_is_not_twisted():
     mid = p & Box(40, 40, 0.5).move(0, 0, 10)
     size = mid.bbox.size
     assert size[0] > size[1] + 0.5
+
+
+def test_edge_selection_skips_seams():
+    plate = Box(40, 20, 5) - Cylinder(3, 5).at(grid(2, 1, 25, 0))
+    assert len(plate.edges("|Z")) == 4  # the box corners, not the hole seams
+    assert len(plate.edges("|Z", seams=True)) == 6
+    assert plate.fillet("|Z", 2).is_valid
+    assert all(not e.is_seam for e in Cylinder(2, 5).edges())

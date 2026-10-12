@@ -93,8 +93,17 @@ class Part:
         s = Selection(Face(f, self._brep, i) for i, f in enumerate(self._brep.faces()))
         return select(s, selector) if selector else s
 
-    def edges(self, selector: str | None = None) -> Selection:
-        s = Selection(Edge(e, self._brep, i) for i, e in enumerate(self._brep.edges()))
+    def edges(self, selector: str | None = None, *, seams: bool = False) -> Selection:
+        """Edges, optionally narrowed by a selector.
+
+        Seam edges (where a cylinder, cone, sphere or torus wraps onto itself) are left out
+        unless ``seams=True``: they aren't real edges, and fillets or chamfers on them fail.
+        """
+        s = Selection(
+            Edge(e, self._brep, i)
+            for i, e in enumerate(self._brep.edges())
+            if seams or len(e.faces()) != 1
+        )
         return select(s, selector) if selector else s
 
     def vertices(self, selector: str | None = None) -> Selection:

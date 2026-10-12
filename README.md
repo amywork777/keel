@@ -20,16 +20,24 @@ part.export("plate.stl")
 
 ## Running it
 
-The kernel ships wheels only for Linux and Windows, so on a Mac keel runs inside Docker:
+NVIDIA publishes the kernel for Linux and Windows only, but it builds natively on a Mac
+from their source. One command builds it (about 1.5 minutes, plus about 15 for OpenUSD the first time):
 
 ```bash
+native/build.sh --build-usd      # kernel + Python module + USD support, native on macOS
 bin/keel examples/bracket.py     # run a script; output files land in your directory
 bin/keel -m pytest tests         # run the tests
-bin/keel                         # interactive Python with keel loaded
 ```
 
-The first run builds a small image (`docker/Dockerfile`: Python 3.12 + `usd-brep`).
-On Linux or Windows, `pip install usd-brep` and `bin/keel` runs Python natively.
+`native/build.sh` compiles NVIDIA's unmodified source (SMLib, SM_API, their USD layer and
+their Python bindings) with a small CMake file, against OpenUSD 25.11, the version they ship.
+Leave out `--build-usd` for a modeling-only build. Everything except USD files works without it.
+
+`bin/keel` runs natively when that build exists. Otherwise it runs NVIDIA's Linux wheel in
+Docker (`docker/Dockerfile`). `KEEL_DOCKER=1` forces Docker. On Linux or Windows,
+`pip install usd-brep` works too.
+
+Mac-built and Linux-built files read each other: same faces, volumes within 1e-5, all valid.
 
 ## The language
 
@@ -47,6 +55,8 @@ accumulate a part step by step.
 | Placement | `.move(x, y, z)`, `.rotate("Z", 45, about=(0,0,0))`, `.mirror("YZ")`, `.scale(2)`, `.place(plane)`, `.at(grid(...))` (copies) |
 | Features | `.fillet(edges, r)`, `.chamfer(edges, d)`, `.shell(t, open=faces)`, `.offset(d)` |
 | Measures | `.volume`, `.area`, `.center`, `.bbox` (`.min .max .size .center`), `.is_valid` |
+
+Edge selections leave out seams, the lines where a cylinder or sphere wraps onto itself, because they can't be filleted. Use `edges(seams=True)` to include them.
 
 Operations never change the part you call them on. The kernel mutates and consumes its
 inputs, so keel always hands it private copies.
@@ -154,5 +164,6 @@ src/keel/      _kernel (kernel access), geom (Plane/Axis), topo (Face/Edge/Selec
 tests/         pytest suite (bin/keel -m pytest tests)
 examples/      bracket.py, bottle.py
 gallery/       realistic-part regression run + renderer
-docker/        the kernel image
+native/        build.sh + CMake for a native kernel build (macOS)
+docker/        the Linux kernel image
 ```

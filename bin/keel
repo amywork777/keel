@@ -5,13 +5,21 @@
 #   bin/keel -m pytest tests            any python arguments work
 #   bin/keel                            interactive python
 #
-# The kernel only ships Linux/Windows wheels, so on macOS this runs inside Docker with the
-# current directory mounted. On Linux/Windows with `pip install usd-brep`, it runs natively.
+# Runs natively when it can:
+#   - a native kernel build (native/build.sh) with its .venv python, e.g. on macOS
+#   - Linux/Windows with `pip install usd-brep`
+# Otherwise it runs inside Docker with the current directory mounted.
+# KEEL_DOCKER=1 forces Docker.
 set -euo pipefail
 KEEL_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-if [[ "$(uname -s)" != "Darwin" ]] && python3 -c "import usd_brep" 2>/dev/null; then
-  PYTHONPATH="$KEEL_HOME/src${PYTHONPATH:+:$PYTHONPATH}" exec python3 "$@"
+if [[ "${KEEL_DOCKER:-0}" != "1" ]]; then
+  if compgen -G "$KEEL_HOME/native/build/_omni_solid*.so" >/dev/null && [[ -x "$KEEL_HOME/.venv/bin/python" ]]; then
+    PYTHONPATH="$KEEL_HOME/src${PYTHONPATH:+:$PYTHONPATH}" exec "$KEEL_HOME/.venv/bin/python" "$@"
+  fi
+  if [[ "$(uname -s)" != "Darwin" ]] && python3 -c "import usd_brep" 2>/dev/null; then
+    PYTHONPATH="$KEEL_HOME/src${PYTHONPATH:+:$PYTHONPATH}" exec python3 "$@"
+  fi
 fi
 
 IMAGE="${KEEL_IMAGE:-keel-dev}"

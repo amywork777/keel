@@ -1,7 +1,10 @@
+*.pyc
+.deps/
+.pytest_cache/
 .ref/
+.venv-ref/
 .venv/
 __pycache__/
-*.pyc
-.pytest_cache/
-out/
 examples/out/
+native/build/
+out/

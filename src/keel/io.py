@@ -13,7 +13,7 @@ import shutil
 import struct
 import tempfile
 from . import geom as g
-from ._kernel import KeelError, call, ub, usd_call
+from ._kernel import KeelError, call, ub, usd_call, usd_fn
 from .part import Part, _flatten
 
 _USD_EXT = (".usda", ".usdc", ".usd")
@@ -108,9 +108,9 @@ def export(items, path: str, *, uv_curves: bool = True, tolerance: float = 0.0) 
     tmp_dir = tempfile.mkdtemp(prefix="keel-")
     try:
         tmp = os.path.join(tmp_dir, "out.usda")
-        usd_call("export", ub.usd.export_brep, breps[0], tmp, export_uv_curves=uv_curves)
+        usd_call("export", usd_fn("export_brep"), breps[0], tmp, export_uv_curves=uv_curves)
         if len(breps) > 1:
-            usd_call("export", ub.usd.append_breps, breps[1:], tmp, export_uv_curves=uv_curves)
+            usd_call("export", usd_fn("append_breps"), breps[1:], tmp, export_uv_curves=uv_curves)
         with open(tmp) as f:
             text = _decorate_usda(f.read(), parts)
         if ext == ".usda":
@@ -118,9 +118,9 @@ def export(items, path: str, *, uv_curves: bool = True, tolerance: float = 0.0) 
                 f.write(text)
         else:
             # No pxr in the kernel wheel to re-encode the decorated layer; write crate directly.
-            usd_call("export", ub.usd.export_brep, breps[0].copy(), path, export_uv_curves=uv_curves)
+            usd_call("export", usd_fn("export_brep"), breps[0].copy(), path, export_uv_curves=uv_curves)
             if len(breps) > 1:
-                usd_call("export", ub.usd.append_breps, [b.copy() for b in breps[1:]], path, export_uv_curves=uv_curves)
+                usd_call("export", usd_fn("append_breps"), [b.copy() for b in breps[1:]], path, export_uv_curves=uv_curves)
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
     return path
@@ -131,7 +131,7 @@ def export_mesh_usd(items, path: str, *, tolerance: float = 0.01) -> str:
     tmp_dir = tempfile.mkdtemp(prefix="keel-")
     try:
         src = export(items, os.path.join(tmp_dir, "brep.usda"))
-        usd_call("mesh export", ub.usd.tessellate_file, src, path, chord_height_tolerance=float(tolerance))
+        usd_call("mesh export", usd_fn("tessellate_file"), src, path, chord_height_tolerance=float(tolerance))
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
     return path
@@ -149,11 +149,11 @@ def load(path: str) -> list[Part]:
     if names:
         try:
             for name in names:
-                parts.append(Part(usd_call("load", ub.usd.import_brep, path, f"/World/{name}"), label=name))
+                parts.append(Part(usd_call("load", usd_fn("import_brep"), path, f"/World/{name}"), label=name))
             return parts
         except KeelError:
             parts = []  # not keel's /World/<name> layout; fall back to unnamed import
-    return [Part(b) for b in usd_call("load", ub.usd.import_breps, path)]
+    return [Part(b) for b in usd_call("load", usd_fn("import_breps"), path)]
 
 
 # -- .usda decoration -------------------------------------------------------------------------
