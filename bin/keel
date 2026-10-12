@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Run Python with keel and NVIDIA's usd-brep kernel.
+#
+#   bin/keel examples/bracket.py        run a script (files it writes land beside it)
+#   bin/keel -m pytest tests            any python arguments work
+#   bin/keel                            interactive python
+#
+# The kernel only ships Linux/Windows wheels, so on macOS this runs inside Docker with the
+# current directory mounted. On Linux/Windows with `pip install usd-brep`, it runs natively.
+set -euo pipefail
+KEEL_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [[ "$(uname -s)" != "Darwin" ]] && python3 -c "import usd_brep" 2>/dev/null; then
+  PYTHONPATH="$KEEL_HOME/src${PYTHONPATH:+:$PYTHONPATH}" exec python3 "$@"
+fi
+
+IMAGE="${KEEL_IMAGE:-keel-dev}"
+if ! docker info >/dev/null 2>&1; then
+  echo "keel: Docker is not running (start Docker Desktop and retry)" >&2
+  exit 1
+fi
+if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  echo "keel: building the kernel image (one time)..." >&2
+  docker build -q -t "$IMAGE" "$KEEL_HOME/docker" >/dev/null
+fi
+TTY=()
+[[ -t 0 && -t 1 ]] && TTY=(-it)
+exec docker run --rm ${TTY[@]+"${TTY[@]}"} \
+  -v "$KEEL_HOME":/keel:ro -v "$PWD":/work -w /work \
+  -e PYTHONPATH=/keel/src -e PYTHONDONTWRITEBYTECODE=1 \
+  --user "$(id -u):$(id -g)" -e HOME=/tmp \
+  "$IMAGE" python "$@"
