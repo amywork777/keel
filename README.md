@@ -4,6 +4,8 @@ A small CAD language on NVIDIA's [usd-brep](https://github.com/NVIDIA-Omniverse/
 You describe parts in Python, with 1D paths, 2D sketches and 3D parts. The output is exact
 B-rep geometry stored natively in USD (`BrepArray` prims), plus STL/OBJ meshes.
 
+![keel gallery](docs/images/gallery.png)
+
 ```python
 from keel import *
 
@@ -129,7 +131,8 @@ Files are written by NVIDIA's own exporter, so anything that reads usd-brep's sc
   parts, and a cut or intersect can't add volume. The kernel can silently drop a part when a
   mirrored copy shares partly-trimmed faces with the original (e.g. `arm + arm.mirror("YZ")`
   where both include the same hub). keel raises instead. Build such shapes with `rotate`, or
-  overlap them slightly.
+  overlap them slightly. Reported upstream with a minimal reproduction
+  ([image](docs/images/mirror_union_bug.png)).
 - `Part.volume` and `Sketch.area` are measured to ~1e-6. The kernel's quick `volume()` can be
   0.1–0.7% off. `Part.area` is ~1e-4, the kernel's finest. `Part.bbox` is the tight box of the
   trimmed geometry.
