@@ -81,20 +81,30 @@ class Edge(_Topo):
     @property
     def center(self) -> tuple:
         """Arc/circle center for circular edges, otherwise the midpoint."""
-        c = self._h.curve()
-        if hasattr(c, "center") and hasattr(c, "radius"):
-            return tuple(c.center())
-        return self.mid
+        c = self.circle
+        return c[0] if c else self.mid
 
     @property
     def geom_type(self) -> str:
         name = type(self._h.curve()).__name__
-        return {"Line": "line", "Circle": "circle"}.get(name, "spline")
+        if name == "Line":
+            return "line"
+        return "circle" if self.circle is not None else "spline"
+
+    @property
+    def circle(self):
+        """(center, radius, unit normal) if this edge is a circle or circular arc, else None.
+
+        The kernel stores many exact circles (e.g. where a torus meets a cylinder) as
+        splines; those are recognized by fitting, with a tight tolerance."""
+        if not hasattr(self, "_circle"):
+            self._circle = _fit_circle(self._h)
+        return self._circle
 
     @property
     def radius(self) -> float | None:
-        c = self._h.curve()
-        return c.radius() if hasattr(c, "radius") else None
+        c = self.circle
+        return c[1] if c else None
 
     @property
     def direction(self) -> tuple | None:
@@ -147,11 +157,7 @@ class Face(_Topo):
 
     def normal_at(self, point) -> tuple:
         """Outward normal at the face point closest to ``point``."""
-        res = self._h.closest_point(g.vec(point))
-        uv = _find_uv(res)
-        if uv is None:
-            return self.normal
-        return g.norm(tuple(self._h.outward_normal_at_uv(*uv)))
+        return face_normal_at(self._h, g.vec(point))
 
     @property
     def is_planar(self) -> bool:
@@ -182,9 +188,45 @@ class Face(_Topo):
         return f"Face({self.geom_type} center={g._fmt(self.center)} normal={g._fmt(self.normal)})"
 
 
+def _fit_circle(e, rel_tol: float = 1e-7):
+    curve = e.curve()
+    if hasattr(curve, "center") and hasattr(curve, "radius"):
+        return (tuple(curve.center()), curve.radius(), g.norm(tuple(curve.normal())))
+    if type(curve).__name__ == "Line":
+        return None
+    t0, t1 = e.parameter_range()
+    pts = [tuple(e.point_at(t0 + (t1 - t0) * k / 12)) for k in range(13)]
+    a, b, c = pts[0], pts[6], pts[12] if g.dist(pts[0], pts[12]) > 1e-9 else pts[9]
+    ab, ac = g.sub(b, a), g.sub(c, a)
+    n = g.cross(ab, ac)
+    nn = g.dot(n, n)
+    if nn < 1e-18:
+        return None
+    # circumcenter of a, b, c
+    center = g.add(a, g.mul(g.add(g.mul(g.cross(n, ab), g.dot(ac, ac)), g.mul(g.cross(ac, n), g.dot(ab, ab))), 1 / (2 * nn)))
+    r = g.dist(center, a)
+    normal = g.norm(n)
+    for p in pts:
+        if abs(g.dist(center, p) - r) > rel_tol * max(r, 1.0) or abs(g.dot(g.sub(p, center), normal)) > rel_tol * max(r, 1.0):
+            return None
+    return (center, r, normal)
+
+
 def _edge_key(e):
     a, b = e.parameter_range()
     return tuple(round(c, 7) for c in e.point_at(0.5 * (a + b))) + (round(e.length(), 7),)
+
+
+def face_normal_at(face, point) -> tuple:
+    """Outward unit normal of a kernel face at the surface point closest to ``point``."""
+    from ._kernel import ub
+
+    _, uvs, _ = ub.surface_closest_point(face.surface(), tuple(point))
+    if not uvs:
+        (u0, v0), (u1, v1) = face.uv_domain()
+        return g.norm(tuple(face.outward_normal_at_uv(0.5 * (u0 + u1), 0.5 * (v0 + v1))))
+    uv = uvs[0]
+    return g.norm(tuple(face.outward_normal_at_uv(uv.x, uv.y)))
 
 
 def _find_uv(res):

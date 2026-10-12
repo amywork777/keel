@@ -190,12 +190,16 @@ class Part:
     def fillet(self, edges, radius: float) -> "Part":
         """Round edges. ``edges``: a selector string, a Selection, an Edge, or a list of edges."""
         b, es = self._edges_on_copy(edges)
-        return self._new(call("fillet", ub.fillet_edges, b, es, radius=float(radius), xsect_type=1))
+        reach = _edge_reach(es, radius)
+        result = call("fillet", ub.fillet_edges, b, es, radius=float(radius), xsect_type=1)
+        return self._new(_check_feature("fillet", self._brep, result, reach))
 
     def chamfer(self, edges, distance: float) -> "Part":
         """Bevel edges, cutting each adjacent face back by ``distance`` (at 90° corners)."""
         b, es = self._edges_on_copy(edges)
-        return self._new(call("chamfer", ub.fillet_edges, b, es, radius=float(distance), xsect_type=0))
+        reach = _edge_reach(es, distance)
+        result = call("chamfer", ub.fillet_edges, b, es, radius=float(distance), xsect_type=0)
+        return self._new(_check_feature("chamfer", self._brep, result, reach))
 
     def shell(self, thickness: float, open=None) -> "Part":
         """Hollow the part with walls of ``thickness`` (inward), removing the ``open`` faces."""
@@ -256,7 +260,75 @@ class Part:
             if match is None:
                 raise KeelError(f"{e!r} is not an edge of this part")
             out.append(match)
-        return b, out
+        return b, [e for e in _tangent_chain(copy_edges, out) if not _is_smooth(e)]
+
+
+def _edge_reach(edges, size: float) -> float:
+    """Upper bound on the volume a fillet/chamfer of ``size`` can remove or add along edges."""
+    return sum(e.length() for e in edges) * float(size) ** 2
+
+
+def _check_feature(name: str, before, result, reach: float):
+    """Reject an invalid or implausible fillet/chamfer result instead of returning it.
+
+    The kernel sometimes "succeeds" with an empty or broken body where OpenCascade raises
+    (e.g. a radius too large for the faces at the edge)."""
+    v0 = _volume(before, 1e-4)
+    v1 = _volume(result, 1e-4) if result.face_count() else 0.0
+    if not result.is_manifold_solid() or v1 <= 0 or abs(v1 - v0) > reach * 1.01 + 1e-9 * v0:
+        raise KeelError(
+            f"{name} failed: the kernel returned an invalid result (volume {v0:.6g} -> {v1:.6g}); "
+            "try a smaller size or fewer edges"
+        )
+    return result
+
+
+def _is_smooth(e, tol: float = 1e-6) -> bool:
+    """True when the two faces at an edge continue each other (same normal there), so the
+    edge is not a corner: e.g. where a slot's flat wall turns into its round end."""
+    from .topo import face_normal_at
+
+    faces = e.faces()
+    if len(faces) != 2:
+        return False
+    t0, t1 = e.parameter_range()
+    mid = tuple(e.point_at(0.5 * (t0 + t1)))
+    return g.dot(face_normal_at(faces[0], mid), face_normal_at(faces[1], mid)) > 1 - tol
+
+
+def _edge_ends(e):
+    """((start point, unit tangent leaving it), (end point, unit tangent leaving it))."""
+    t0, t1 = e.parameter_range()
+    a, b = tuple(e.point_at(t0)), tuple(e.point_at(t1))
+    da = g.norm(tuple(e.tangent_at(t0)))
+    db = g.mul(g.norm(tuple(e.tangent_at(t1))), -1)
+    return (a, da), (b, db)
+
+
+def _tangent_chain(all_edges, chosen, tol: float = 1e-4) -> list:
+    """Grow an edge selection along edges that continue it smoothly (tangent at a shared vertex).
+
+    The kernel's fillet/chamfer needs a whole tangent chain in one call (for example the
+    straight sides of a slot together with its round ends); OpenCascade, and so build123d,
+    propagate a selection along such chains automatically. Seams are never added.
+    """
+    candidates = [e for e in all_edges if len(e.faces()) != 1]
+    ends = [(e, _edge_ends(e)) for e in candidates]
+    selected = list(chosen)
+    frontier = list(chosen)
+    while frontier:
+        cur = frontier.pop()
+        for p, t in _edge_ends(cur):
+            for e, e_ends in ends:
+                if any(e is x or _same_edge(e, x) for x in selected):
+                    continue
+                for q, u in e_ends:
+                    # tangent continuation: same point, leaving in opposite directions
+                    if g.dist(p, q) < 1e-6 and g.dot(t, u) < -1 + tol:
+                        selected.append(e)
+                        frontier.append(e)
+                        break
+    return selected
 
 
 def _check_boolean(name: str, a, b, result) -> None:

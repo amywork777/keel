@@ -1,0 +1,551 @@
+[
+ {
+  "model": "basic_shape_mating_test_fixture",
+  "function": null,
+  "status": "skipped",
+  "error": "harness: cadgen.assembly (mates/joints) is not part of this comparison"
+ },
+ {
+  "model": "cam_follower_roller",
+  "function": "cam_follower_roller",
+  "seconds": 0.163,
+  "volume": 12248.494450978718,
+  "bbox": [
+   [
+    -16.0,
+    -16.0,
+    0.0
+   ],
+   [
+    16.0,
+    16.0,
+    18.000000000000007
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "centrifugal_impeller",
+  "function": "centrifugal_impeller",
+  "seconds": 25.078,
+  "volume": 67119.09562549028,
+  "bbox": [
+   [
+    -45.00000000000001,
+    -45.0,
+    0.0
+   ],
+   [
+    45.00000000000001,
+    45.00000000000001,
+    28.0
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "circular_flange",
+  "function": "circular_flange",
+  "seconds": 0.259,
+  "volume": 41259.781815675735,
+  "bbox": [
+   [
+    -40.0,
+    -40.0,
+    0.0
+   ],
+   [
+    40.0,
+    40.00000000000001,
+    10.000000000000002
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "clevis_bracket_lightening_cutouts",
+  "function": "clevis_bracket_lightening_cutouts",
+  "seconds": 0.435,
+  "volume": 105943.6602394739,
+  "bbox": [
+   [
+    -60.0,
+    -30.000000000000004,
+    0.0
+   ],
+   [
+    60.00000000000023,
+    30.000000000000025,
+    52.0
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "cylindrical_cap",
+  "function": "cylindrical_cap",
+  "seconds": 0.212,
+  "volume": 16192.295767227542,
+  "bbox": [
+   [
+    -21.000000000000004,
+    -21.0,
+    0.0
+   ],
+   [
+    21.000000000000004,
+    21.0,
+    34.0
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "cylindrical_spacer_sleeve",
+  "function": "cylindrical_spacer_sleeve",
+  "seconds": 0.155,
+  "volume": 17527.654353207912,
+  "bbox": [
+   [
+    -15.0,
+    -15.0,
+    0.0
+   ],
+   [
+    15.0,
+    15.0,
+    28.000000000000004
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "electronics_enclosure_base",
+  "function": "electronics_enclosure_base",
+  "seconds": 0.239,
+  "volume": 51008.70718842668,
+  "bbox": [
+   [
+    -50.0,
+    -35.00000000000001,
+    0.0
+   ],
+   [
+    50.0,
+    35.00000000000001,
+    30.0
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "electronics_enclosure_base_drawing",
+  "function": null,
+  "status": "skipped",
+  "error": "harness: cadgen.eng_drawing is not part of this comparison"
+ },
+ {
+  "model": "flywheel_disk",
+  "function": "flywheel_disk",
+  "seconds": 2.038,
+  "volume": 54698.372195947966,
+  "bbox": [
+   [
+    -45.0,
+    -45.0,
+    0.0
+   ],
+   [
+    45.0,
+    45.0,
+    12.000000000000002
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "gusset_plate",
+  "function": "gusset_plate",
+  "seconds": 0.737,
+  "volume": 19981.320331711693,
+  "bbox": [
+   [
+    -44.000000000000334,
+    -15.000000000002041,
+    -1.801176547849361e-12
+   ],
+   [
+    44.000000000000384,
+    15.000000000000002,
+    51.0875388202502
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "keyed_shaft_hub",
+  "function": "keyed_shaft_hub",
+  "seconds": 1.086,
+  "volume": 40488.591853687205,
+  "bbox": [
+   [
+    -26.999999982232644,
+    -26.999999997109455,
+    0.0
+   ],
+   [
+    27.000000000000007,
+    26.999999999820865,
+    22.000000000000007
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "l_bracket",
+  "function": "l_bracket",
+  "seconds": 0.222,
+  "volume": 70322.68917350643,
+  "bbox": [
+   [
+    -40.0,
+    -25.0,
+    0.0
+   ],
+   [
+    40.0,
+    25.00000000000001,
+    58.0
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "mounting_plate",
+  "function": "mounting_plate",
+  "seconds": 6.778,
+  "volume": 48221.87791417226,
+  "bbox": [
+   [
+    -50.00000000000001,
+    -35.0000000000032,
+    -1.1780926193438755e-12
+   ],
+   [
+    50.00000000000001,
+    35.0000000000032,
+    8.00000000000029
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "open_top_electronics_enclosure",
+  "function": "open_top_electronics_enclosure",
+  "seconds": 0.255,
+  "volume": 51008.70718842668,
+  "bbox": [
+   [
+    -50.0,
+    -35.00000000000001,
+    0.0
+   ],
+   [
+    50.0,
+    35.00000000000001,
+    30.0
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "print_in_place_hinge",
+  "function": null,
+  "status": "skipped",
+  "error": "harness: cadgen.assembly (mates/joints) is not part of this comparison"
+ },
+ {
+  "model": "print_in_place_multi_pivot_phone_holder",
+  "function": null,
+  "status": "skipped",
+  "error": "harness: cadgen.assembly (mates/joints) is not part of this comparison"
+ },
+ {
+  "model": "pulley_wheel",
+  "function": "pulley_wheel",
+  "seconds": 1.76,
+  "volume": 63267.92434489864,
+  "bbox": [
+   [
+    -35.0,
+    -35.0,
+    -4.0
+   ],
+   [
+    35.0,
+    35.0,
+    20.000000000000007
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "radial_engine_cylinder",
+  "function": "radial_engine_cylinder",
+  "seconds": 23.27,
+  "volume": 154249.71637925573,
+  "bbox": [
+   [
+    -35.00000000000001,
+    -35.0,
+    -1.1102230246251565e-16
+   ],
+   [
+    44.10110768104209,
+    35.0,
+    92.68074673815906
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "recognition_fixture",
+  "function": "recognition_fixture",
+  "seconds": 0.149,
+  "volume": 13705.859052066235,
+  "bbox": [
+   [
+    -35.0,
+    -18.0,
+    -3.0000000000000004
+   ],
+   [
+    35.0,
+    18.0,
+    7.0
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "rectangular_calibration_block",
+  "function": "rectangular_calibration_block",
+  "seconds": 0.207,
+  "volume": 115349.43515459582,
+  "bbox": [
+   [
+    -50.0,
+    -30.0,
+    0.0
+   ],
+   [
+    50.0,
+    30.0,
+    20.0
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "rectangular_clamp_block",
+  "function": "rectangular_clamp_block",
+  "seconds": 1.507,
+  "volume": 57156.67946423744,
+  "bbox": [
+   [
+    -35.0,
+    -17.0,
+    0.0
+   ],
+   [
+    35.0,
+    17.0,
+    28.0
+   ]
+  ],
+  "solids": 2,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "retainer_plate",
+  "function": "retainer_plate",
+  "seconds": 1.525,
+  "volume": 14027.02560465896,
+  "bbox": [
+   [
+    -41.0,
+    -17.0,
+    0.0
+   ],
+   [
+    41.0,
+    17.0,
+    6.000000000000001
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "shaft_collar",
+  "function": "shaft_collar",
+  "seconds": 0.312,
+  "volume": 16799.18840168949,
+  "bbox": [
+   [
+    -20.999999996751445,
+    -20.999999996996568,
+    0.0
+   ],
+   [
+    21.000000000000004,
+    20.99999995796745,
+    16.000000000000007
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "small_enclosure_cover",
+  "function": "small_enclosure_cover",
+  "seconds": 3.854,
+  "volume": 20024.19033502761,
+  "bbox": [
+   [
+    -45.0,
+    -30.0,
+    0.0
+   ],
+   [
+    45.0,
+    30.0,
+    4.0
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "spur_gear_blank",
+  "function": "spur_gear_blank",
+  "seconds": 1.844,
+  "volume": 44825.32032455481,
+  "bbox": [
+   [
+    -38.87163197406789,
+    -38.87163197406789,
+    -3.000000000000001
+   ],
+   [
+    38.87163197406789,
+    38.87163197406789,
+    13.000000000000005
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "square_mounting_block",
+  "function": "square_mounting_block",
+  "seconds": 0.406,
+  "volume": 58908.481641875645,
+  "bbox": [
+   [
+    -24.0,
+    -24.0,
+    0.0
+   ],
+   [
+    24.0,
+    24.0,
+    28.000000000000007
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "stepped_shaft_keyway",
+  "function": "stepped_shaft_keyway",
+  "seconds": 0.201,
+  "volume": 60504.4362533223,
+  "bbox": [
+   [
+    -1.027696881586254e-15,
+    -15.0,
+    -15.000000000000004
+   ],
+   [
+    120.00000000000003,
+    15.0,
+    15.000000000000002
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ },
+ {
+  "model": "t_slot_slider_block",
+  "function": "t_slot_slider_block",
+  "seconds": 0.175,
+  "volume": 32463.23168441386,
+  "bbox": [
+   [
+    -40.0,
+    -18.0,
+    -1.1102230246251565e-16
+   ],
+   [
+    40.0,
+    18.0,
+    18.000000000000004
+   ]
+  ],
+  "solids": 1,
+  "valid": true,
+  "status": "ok"
+ }
+]
