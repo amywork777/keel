@@ -7,6 +7,7 @@ always given private copies, so a Part you hold never changes underneath you.
 from __future__ import annotations
 
 import math
+import re
 import warnings
 
 from typing import Iterable
@@ -35,6 +36,36 @@ class BBox(tuple):
     @property
     def center(self):
         return g.mul(g.add(self[0], self[1]), 0.5)
+
+
+def _occt_shell_walk(face_edges: list[list[int]]) -> list[int]:
+    """The face order OpenCASCADE (7.9, ShapeFix_Shell) gives a shell read from a file.
+
+    ``face_edges[i]`` lists face i's edges in loop order. From the first face not yet reached,
+    a stack walk: pop a face, and for each of its edges push the unvisited faces on that
+    edge in file order. Separate shells come out one after another.
+    """
+    edge_faces: dict[int, list[int]] = {}
+    for i, es in enumerate(face_edges):
+        for e in es:
+            faces = edge_faces.setdefault(e, [])
+            if i not in faces:
+                faces.append(i)
+    order, seen = [], set()
+    for start in range(len(face_edges)):
+        if start in seen:
+            continue
+        seen.add(start)
+        stack = [start]
+        while stack:
+            f = stack.pop()
+            order.append(f)
+            for e in face_edges[f]:
+                for n in edge_faces[e]:
+                    if n not in seen:
+                        seen.add(n)
+                        stack.append(n)
+    return order
 
 
 class Part:
@@ -92,9 +123,70 @@ class Part:
         return self._brep.info()
 
     # -- topology -----------------------------------------------------------------------------
+    def ref(self, entity) -> str:
+        """The name a STEP reader gives ``entity`` (a face or edge of this part), the way
+        text-to-cad writes it: ``"f12"``, ``"e7"``, or ``"label.f12"`` for a labeled part."""
+        from .step import step_names
+
+        faces, edges = step_names(self)
+        if isinstance(entity, Face) and entity._owner is self._brep:
+            name = f"f{faces.index(entity.index) + 1}"
+        elif isinstance(entity, Edge) and entity._owner is self._brep:
+            name = f"e{edges.index(entity.index) + 1}"
+        else:
+            raise KeelError(f"{entity!r} is not a face or edge of this part")
+        return f"{self.label}.{name}" if self.label else name
+
+    def find(self, ref: str):
+        """The face or edge a STEP name refers to: ``"f12"``, ``"e7"``, ``"label.e7"`` or
+        text-to-cad's ``"#label.e7"``. Inverse of ``ref``."""
+        from .step import step_names
+
+        m = re.fullmatch(r"#?(?:(.+)\.)?([fe])(\d+)", ref.strip())
+        if not m or (m.group(1) and m.group(1) != self.label):
+            raise KeelError(f"{ref!r} doesn't name a face or edge of this part")
+        faces, edges = step_names(self)
+        kind, n = m.group(2), int(m.group(3))
+        order = faces if kind == "f" else edges
+        if not 1 <= n <= len(order):
+            raise KeelError(f"{ref!r}: the part has {len(order)} {'faces' if kind == 'f' else 'edges'}")
+        i = order[n - 1]
+        if i is None:
+            raise KeelError(f"{ref!r} is a zero-length edge STEP readers add at a sphere pole; keel has no edge there")
+        if kind == "f":
+            return Face(self._brep.faces()[i], self._brep, i)
+        return Edge(self._brep.edges()[i], self._brep, i)
+
     def faces(self, selector: str | None = None) -> Selection:
-        s = Selection(Face(f, self._brep, i) for i, f in enumerate(self._brep.faces()))
+        faces = self._brep.faces()
+        s = Selection(Face(faces[i], self._brep, i) for i in self._face_order())
         return select(s, selector) if selector else s
+
+    def _face_order(self) -> list[int]:
+        """Kernel face indices in the order STEP files (and so text-to-cad) number them.
+
+        OpenCASCADE's STEP reader rebuilds every shell with a depth-first walk over shared
+        edges, so a STEP file's faces come back in walk order, not file order. keel writes
+        faces in an order the walk leaves unchanged (repeating the walk until it settles),
+        so ``part.faces()[i]`` is face ``i + 1`` in the file and in OCCT (``label.f12``).
+        """
+        if getattr(self, "_face_order_cache", None) is None:
+            index = {e: i for i, e in enumerate(self._brep.edges())}
+            edges = [[index[e] for loop in f.boundary_loops() for e, _ in loop] for f in self._brep.faces()]
+            order = list(range(len(edges)))
+            for _ in range(10):
+                walked = [order[i] for i in _occt_shell_walk([edges[i] for i in order])]
+                if walked == order:
+                    break
+                order = walked
+            # file order, and the order a reader gets back (the same once the walk settles)
+            self._face_order_cache = (order, [order[i] for i in _occt_shell_walk([edges[i] for i in order])])
+        return self._face_order_cache[1]
+
+    def _step_order(self) -> list[int]:
+        """Kernel face indices in the order to write them to a STEP file."""
+        self._face_order()
+        return self._face_order_cache[0]
 
     def edges(self, selector: str | None = None, *, seams: bool = False) -> Selection:
         """Edges, optionally narrowed by a selector.
@@ -102,12 +194,22 @@ class Part:
         Seam edges (where a cylinder, cone, sphere or torus wraps onto itself) are left out
         unless ``seams=True``: they aren't real edges, and fillets or chamfers on them fail.
         """
-        s = Selection(
-            Edge(e, self._brep, i)
-            for i, e in enumerate(self._brep.edges())
-            if seams or len(e.faces()) != 1
-        )
+        edges = self._brep.edges()
+        s = Selection(Edge(edges[i], self._brep, i) for i in self._edge_order() if seams or len(edges[i].faces()) != 1)
         return select(s, selector) if selector else s
+
+    def _edge_order(self) -> list[int]:
+        """Kernel edge indices in the order the faces (in ``faces()`` order) reach them, loop by loop.
+
+        Close to how STEP readers number edges, but not the same: they also reverse some loops
+        and add zero-length edges at poles. Use ``ref``/``find`` for STEP names.
+        """
+        if getattr(self, "_edge_order_cache", None) is None:
+            index = {e: i for i, e in enumerate(self._brep.edges())}
+            faces = self._brep.faces()
+            order = dict.fromkeys(index[e] for i in self._face_order() for loop in faces[i].boundary_loops() for e, _ in loop)
+            self._edge_order_cache = list(order) + [i for i in index.values() if i not in order]
+        return self._edge_order_cache
 
     def vertices(self, selector: str | None = None) -> Selection:
         s = Selection(Vertex(v, self._brep, i) for i, v in enumerate(self._brep.vertices()))

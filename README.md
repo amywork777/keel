@@ -127,12 +127,21 @@ return location lists for `.at(...)`.
 | | |
 |---|---|
 | `export(parts, "x.usda")` / `part.export(...)` | Exact B-rep, one `BrepArray` prim per part under `/World`. In `.usda` files, prims are named from part labels, get `displayColor` from part colors, and the stage is marked mm and Z-up. `.usdc` keeps the geometry but uses the kernel's default prim names. |
+| `.step` / `.stp` | Exact B-rep as AP214 STEP, one part per file, product named from the part label. Lines and circles are written as true `LINE`/`CIRCLE`. No OpenCASCADE needed. |
 | `.stl` / `.obj` | Tessellated mesh |
 | `export_mesh_usd(parts, "x.usda")` | `UsdGeom.Mesh` copy, for viewers without the BrepArray plugin |
 | `load("x.usda")` | Back to Parts. Labels are restored from `.usda` prim names. |
 
 Files are written by NVIDIA's own exporter, so anything that reads usd-brep's schema
 (their Python API, their Hydra plugin for usdview) reads keel output.
+
+**STEP and face names.** keel writes STEP itself from the kernel's exact USD record (the kernel
+has no STEP writer). Tools like text-to-cad name faces and edges by position (`label.f12`,
+`label.e7`), in the order OpenCASCADE reads them. keel writes faces in an order that reader
+keeps, so `part.faces()[i]` is `f{i+1}`. For anything else use `part.ref(face_or_edge)` (gives
+`"f12"`, or `"label.f12"` on a labeled part) and `part.find("e7")` (also takes `"#label.e7"`):
+they follow the same plan the writer does, including the zero-length edges OpenCASCADE adds at
+sphere poles and collapsed NURBS sides (`find` raises for those).
 
 ## Kernel notes
 
@@ -147,11 +156,15 @@ Files are written by NVIDIA's own exporter, so anything that reads usd-brep's sc
   0.1–0.7% off. `Part.area` is ~1e-4, the kernel's finest. `Part.bbox` is the tight box of the
   trimmed geometry.
 - Lofts line up sections before skinning: polygon loops start at the corner nearest the first section's start, and circles are split into exact arcs at the polygon's corner angles, so circle → polygon → circle doesn't twist.
-- Not available yet: text, STEP import/export, and per-edge variable fillets.
+- Not available yet: text, STEP import, and per-edge variable fillets.
 
 ## Testing
 
 `bin/keel -m pytest tests` runs the unit tests, checked against analytic volumes to 1e-4.
+The STEP tests read every file back with OpenCASCADE, so they need a Python with OCP: they use
+`.venv-ref` (build123d's venv) or `KEEL_OCCT_PYTHON`, and skip without it. `tests/test_step_t2c.py`
+also exports 17 of text-to-cad's example parts when a checkout is at
+`.ref/t2c-feasibility/t2c-main` (or `KEEL_T2C_EXAMPLES`).
 `cd gallery && ../bin/keel gallery.py` builds 12 realistic parts, checks each is valid and
 survives a USD round trip, and writes STL/USD. `render.py` there draws them all into
 `gallery/out/gallery.png`, using a small z-buffer renderer with smooth shading and edge outlines.

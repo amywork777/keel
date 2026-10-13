@@ -90,6 +90,7 @@ def export(items, path: str, *, uv_curves: bool = True, tolerance: float = 0.0) 
     """Write one or more Parts. Format from the extension:
 
     ``.usda``/``.usdc``/``.usd``  exact BRep, one BrepArray prim per part under /World
+    ``.step`` / ``.stp``          exact BRep as AP214 STEP (one part per file)
     ``.stl`` / ``.obj``           tessellated mesh of all parts
     """
     parts = _parts(items)
@@ -101,8 +102,12 @@ def export(items, path: str, *, uv_curves: bool = True, tolerance: float = 0.0) 
         for p in parts[1:]:
             mesh = mesh + tessellate(p, tolerance)
         return mesh.write_stl(path) if ext == ".stl" else mesh.write_obj(path)
+    if ext in (".step", ".stp"):
+        from .step import write_step
+
+        return write_step(parts, path)
     if ext not in _USD_EXT:
-        raise ValueError(f"unsupported export format {ext!r} (use .usda .usdc .usd .stl .obj)")
+        raise ValueError(f"unsupported export format {ext!r} (use .usda .usdc .usd .step .stl .obj)")
 
     breps = [p.brep.copy() for p in parts]  # export may cache trims on its input
     tmp_dir = tempfile.mkdtemp(prefix="keel-")
