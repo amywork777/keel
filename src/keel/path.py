@@ -110,11 +110,6 @@ class _Spline(_Seg):
         pts = [g.vec(p) for p in pts]
         if len(pts) < 2:
             raise ValueError("a spline needs at least two points")
-        if len(pts) < 4:  # the kernel's interpolator needs four; add midpoints (still passes through pts)
-            dense = [pts[0]]
-            for a, b in zip(pts, pts[1:]):
-                dense += [g.mul(g.add(a, b), 0.5), b]
-            pts = dense if len(dense) >= 4 else [pts[0], *(g.add(pts[0], g.mul(g.sub(pts[1], pts[0]), t)) for t in (1 / 3, 2 / 3)), pts[1]]
         self.pts = pts
         self.planar = all(abs(p[2]) < 1e-12 for p in pts)
 
@@ -122,7 +117,20 @@ class _Spline(_Seg):
     end = property(lambda s: s.pts[-1])
 
     def build(self):
-        return ub.create_curve_interp_points(self.pts, parameterization=ub.CurveParameterization.CHORD_LENGTH)
+        pts = self.pts
+        if len(pts) >= 4:
+            return ub.create_curve_interp_points(pts, parameterization=ub.CurveParameterization.CHORD_LENGTH)
+        # The kernel's interpolator needs four points. Like OpenCASCADE's interpolator, fit the
+        # lowest degree through fewer: a line through two, the quadratic through three at
+        # chord-length parameters.
+        if len(pts) == 2:
+            ctrl = [pts[0], g.mul(g.add(pts[0], pts[1]), 0.5), pts[1]]
+        else:
+            d1, d2 = g.dist(pts[0], pts[1]), g.dist(pts[1], pts[2])
+            t = d1 / (d1 + d2)
+            ctrl = [pts[0], g.mul(g.sub(g.sub(pts[1], g.mul(pts[0], (1 - t) ** 2)), g.mul(pts[2], t * t)),
+                                  1 / (2 * t * (1 - t))), pts[2]]
+        return ub.create_canonical_curve(ctrl, [0.0, 1.0], [3, 3], degree=2)
 
     build_bspline = build
 

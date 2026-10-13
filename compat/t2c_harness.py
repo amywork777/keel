@@ -1,7 +1,7 @@
 """Run text-to-cad model scripts, unmodified, against a chosen build123d implementation.
 
     python t2c_harness.py --backend build123d --models <dir> --out ref.json   # real build123d
-    python t2c_harness.py --backend keel      --models <dir> --out keel.json  # keel.build123d
+    python t2c_harness.py --backend keel      --models <dir> --out keel.json  # keel123d
 
 A stand-in ``cadgen`` package makes ``from cadgen import build123d as bd`` resolve to the
 chosen backend. Each ``@step``/``@glb``/... function runs in its own subprocess (so one
@@ -54,8 +54,8 @@ STANDIN = {
     "cadgen/build123d.py": '''
         import os as _os
         if _os.environ["T2C_BACKEND"] == "keel":
-            from keel.build123d import *  # noqa: F401,F403
-            import keel.build123d as _impl
+            from keel123d import *  # noqa: F401,F403
+            import keel123d as _impl
         else:
             from build123d import *  # noqa: F401,F403
             import build123d as _impl

@@ -1,10 +1,10 @@
-"""keel.build123d follows build123d 0.11's conventions (checked against real build123d)."""
+"""keel123d follows build123d 0.11's conventions (checked against real build123d)."""
 
 import math
 
 import pytest
 
-from keel import build123d as bd
+import keel123d as bd
 
 PI = math.pi
 C, MIN = bd.Align.CENTER, bd.Align.MIN
@@ -114,3 +114,91 @@ def test_algebra_mode():
     plate = bd.Box(40, 20, 5) - bd.Pos(10, 0, 0) * bd.Cylinder(3, 5)
     assert close(plate.volume, 4000 - PI * 9 * 5)
     assert close(plate.moved(bd.Rot(0, 0, 90)).volume, plate.volume)
+
+
+def test_old_import_name_is_the_same_module():
+    from keel import build123d
+
+    assert build123d is bd
+
+
+# Expected values below were printed by build123d 0.11.1 for the same scripts.
+
+
+def test_buildline_profile_in_a_sketch_on_xz():
+    with bd.BuildSketch(bd.Plane.XZ) as sk:
+        with bd.BuildLine():
+            bd.Line((0.001, -1.6), (0.55, -1.6))
+            bd.Line((0.55, -1.6), (0.55, 3.10))
+            bd.Line((0.55, 3.10), (2.0, 3.10))
+            bd.Line((2.0, 3.10), (2.0, 4.06))
+            bd.RadiusArc((2.0, 4.06), (0.001, 4.6), -5.0)
+            bd.Line((0.001, 4.6), (0.001, -1.6))
+        bd.make_face()
+    assert close(bd.revolve(sk.sketch, bd.Axis.Z).volume, 19.7464)
+
+
+def test_buildline_splines_make_a_face_with_a_hole():
+    with bd.BuildSketch() as sk:
+        with bd.BuildLine():
+            bd.Spline((0, -2), (1.5, 0), (0, 2))
+            bd.Spline((0, 2), (-1, 0), (0, -2))
+        bd.make_face()
+        bd.Circle(0.4, mode=bd.Mode.SUBTRACT)
+    assert close(bd.extrude(sk.sketch, amount=1).volume, 6.1641)
+
+
+def test_three_point_spline_is_the_quadratic_through_them():
+    # OpenCASCADE fits degree 2 with its middle pole at (3, 0): the curve passes (1.5, 0) at t = 0.5.
+    # Lengths agree to the kernel's length integration (~1e-4).
+    spline = bd.Spline((0, -2), (1.5, 0), (0, 2))
+    assert [round(c, 9) for c in spline.position_at(0.5)] == [1.5, 0, 0]
+    assert close(spline.length, 5.198038, rel=2e-4)
+    assert close(bd.Spline((0, 2), (-1, 0), (0, -2)).length, 4.591141, rel=2e-4)
+
+
+def test_radius_arc_sides_on_a_workplane():
+    with bd.BuildLine(bd.Plane.YZ) as line:
+        bd.Line((0, 0), (1, 2))
+        bd.RadiusArc((1, 2), (3, 0), 3)
+        bd.RadiusArc((3, 0), (0, 0), 2, short_sagitta=False)
+    short, long_ = line.edges()[1], line.edges()[2]
+    assert [round(c, 4) for c in short.position_at(0.5)] == [0, 2.2505, 1.2505]
+    assert [round(c, 4) for c in long_.position_at(0.5)] == [0, 1.5, 3.3229]
+    assert len(line.wires()) == 1
+    assert bd.RadiusArc((1, 2), (3, 0), 3).position_at(0.5).X == pytest.approx(2.2505, abs=1e-4)
+    with pytest.raises(ValueError, match="not large enough"):
+        bd.RadiusArc((0, 0), (10, 0), 1)
+
+
+def test_buildline_in_a_part_is_the_sweep_path():
+    with bd.BuildPart() as part:
+        with bd.BuildLine():
+            bd.Line((0, 0, 0), (0, 0, 10))
+        with bd.BuildSketch():
+            bd.Circle(1)
+        bd.sweep()
+    assert close(part.part.volume, 10 * PI)
+
+
+def test_private_line_objects_stay_out_of_the_line():
+    with bd.BuildLine() as line:
+        bd.Line((0, 0), (1, 0))
+        bd.Line((1, 0), (1, 1), mode=bd.Mode.PRIVATE)
+    assert len(line.edges()) == 1
+
+
+def test_make_face_points_up_but_face_follows_the_loop():
+    clockwise = bd.Polyline((0, 0), (0, 10), (10, 10), (10, 0), close=True)
+    assert bb(bd.extrude(bd.make_face(clockwise.edges()), 5))[5] == 5
+    assert bb(bd.extrude(bd.Face(clockwise), 5))[2] == -5
+
+
+def test_export_step_and_stl(tmp_path):
+    part = bd.Box(10, 20, 5)
+    part.label = "block"
+    assert bd.export_step(part, tmp_path / "block.step")
+    text = (tmp_path / "block.step").read_text()
+    assert "ISO-10303-21" in text and "'block'" in text
+    assert bd.export_stl(part, tmp_path / "block.stl")
+    assert (tmp_path / "block.stl").stat().st_size > 84

@@ -122,6 +122,33 @@ part = b.part
 `grid(nx, ny, dx, dy)`, `polar(count, radius, start=, sweep=)` and `line_of(count, spacing, dir)`
 return location lists for `.at(...)`.
 
+## keel123d: build123d's language
+
+`keel123d` is build123d's API on the same kernel. A build123d script runs on NVIDIA's
+kernel by changing its import:
+
+```python
+import keel123d as bd              # instead of: import build123d as bd
+
+with bd.BuildPart() as flange:
+    bd.Cylinder(40, 10)
+    with bd.Locations(*bd.PolarLocations(30, 6)):
+        bd.Cylinder(3, 10, mode=bd.Mode.SUBTRACT)
+part = bd.fillet(flange.part.edges().filter_by(bd.GeomType.CIRCLE), radius=1)
+bd.export_step(part, "flange.step")
+```
+
+It follows build123d 0.11's conventions (rotation order, alignment, workplanes, which
+side an arc bulges to), checked against real build123d. It covers the builders
+(`BuildPart`, `BuildSketch`, `BuildLine`), algebra mode, locations, the common primitives,
+line objects, `extrude`/`revolve`/`loft`/`sweep`, `fillet`/`chamfer`/`mirror` and
+`ShapeList` selection. Anything else raises `AttributeError` or `KeelError`: nothing is
+silently approximated. Code that imports OpenCASCADE directly (`OCP`) can't run here.
+
+`compat/t2c_harness.py` runs whole text-to-cad projects through both libraries and
+`compat/compare.py` diffs volumes and bounding boxes. `from keel import build123d` is the
+old name and still works.
+
 ## Files
 
 | | |
@@ -157,6 +184,7 @@ sphere poles and collapsed NURBS sides (`find` raises for those).
   trimmed geometry.
 - Lofts line up sections before skinning: polygon loops start at the corner nearest the first section's start, and circles are split into exact arcs at the polygon's corner angles, so circle → polygon → circle doesn't twist.
 - Not available yet: text, STEP import, and per-edge variable fillets.
+- Splines through two or three points are the line or quadratic through them, as in OpenCASCADE (the kernel's interpolator needs four).
 
 ## Testing
 
@@ -174,6 +202,8 @@ survives a USD round trip, and writes STL/USD. `render.py` there draws them all 
 ```
 src/keel/      _kernel (kernel access), geom (Plane/Axis), topo (Face/Edge/Selection),
                part (Part), sketch (2D), path (1D), solids (primitives), io, build, patterns
+src/keel123d/  build123d's API on keel
+compat/        run text-to-cad projects on build123d and keel123d, and compare
 tests/         pytest suite (bin/keel -m pytest tests)
 examples/      bracket.py, bottle.py
 gallery/       realistic-part regression run + renderer
