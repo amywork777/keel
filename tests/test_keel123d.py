@@ -5,6 +5,7 @@ import math
 import pytest
 
 import keel123d as bd
+from keel import KeelError
 
 PI = math.pi
 C, MIN = bd.Align.CENTER, bd.Align.MIN
@@ -202,3 +203,36 @@ def test_export_step_and_stl(tmp_path):
     assert "ISO-10303-21" in text and "'block'" in text
     assert bd.export_stl(part, tmp_path / "block.stl")
     assert (tmp_path / "block.stl").stat().st_size > 84
+
+
+def test_make_hull_of_circles_is_exact():
+    # build123d samples each edge, so it agrees to ~1e-6 here, and keel's tangents are exact.
+    pin, lobe = bd.Pos(0, 10) * bd.Circle(4), bd.Circle(6)
+    assert close(bd.extrude(bd.make_hull(pin.edges() + lobe.edges()), 1).volume, 183.688)
+    three = bd.Circle(12.5) + bd.Pos(-20, 30) * bd.Circle(4.8) + bd.Pos(20, 30) * bd.Circle(4.8)
+    assert close(bd.extrude(bd.make_hull(three.edges()), 1).volume, 1633.339)
+    lines_and_circle = bd.Rectangle(20, 4).edges() + (bd.Pos(0, 12) * bd.Circle(3)).edges()
+    assert close(bd.extrude(bd.make_hull(lines_and_circle), 1).volume, 230.453)
+    with bd.BuildSketch() as sk:
+        bd.Circle(5)
+        with bd.Locations((15, 0)):
+            bd.Circle(2)
+        bd.make_hull()
+    assert close(sk.sketch.area, 152.66)
+    with pytest.raises(KeelError, match="not supported yet"):
+        bd.make_hull([bd.Spline((0, 0), (3, 4), (6, 0), (10, 2))])
+
+
+def test_sketch_edges_and_vertices():
+    assert len(bd.RectangleRounded(6, 4, 1).edges()) == 8
+    assert {v.X for v in bd.Rectangle(4, 2).vertices()} == {-2, 2}
+    assert len(bd.Rectangle(4, 2).vertices()) == 4
+
+
+def test_positions_along_edges_and_wires_go_by_length():
+    wire = bd.Polyline((0, 0), (10, 0), (10, 5))
+    assert tuple(wire @ 0.5) == pytest.approx((7.5, 0, 0))
+    assert tuple(wire % 0.9) == pytest.approx((0, 1, 0))
+    spline = bd.Spline((0, 0), (3, 4), (6, 0), (10, 2))
+    assert tuple(spline @ 0.3) == pytest.approx((2.0417, 4.2876, 0), abs=1e-4)
+    assert tuple(spline % 0.3) == pytest.approx((0.9249, 0.3803, 0), abs=1e-4)

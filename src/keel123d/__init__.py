@@ -15,7 +15,7 @@ Conventions follow build123d 0.11: rotations are degrees applied as Rx·Ry·Rz, 
 aligned before they are rotated, ``Polygon`` is not centered unless asked, and builder
 objects are placed at every location of the active ``Locations``.
 
-Not covered yet: joints and assemblies, text, ``make_hull``, ``offset``, importing files.
+Not covered yet: joints and assemblies, text, ``offset``, ``fillet_2d``, importing files.
 """
 
 from __future__ import annotations
@@ -687,8 +687,8 @@ class Edge:
     @property
     def geom_type(self) -> GeomType:
         if self._recipe is not None:
-            return {"line": GeomType.LINE, "arc": GeomType.CIRCLE, "circle": GeomType.CIRCLE}.get(
-                self._recipe.kind, GeomType.BSPLINE)
+            return {"line": GeomType.LINE, "arc": GeomType.CIRCLE, "circle": GeomType.CIRCLE,
+                    "ellipse": GeomType.ELLIPSE}.get(self._recipe.kind, GeomType.BSPLINE)
         return {"line": GeomType.LINE, "circle": GeomType.CIRCLE}.get(self._e.geom_type, GeomType.BSPLINE)
 
     def _circle(self):
@@ -727,19 +727,24 @@ class Edge:
         return Vector(self._recipe.end if self._recipe is not None else self._e.end)
 
     def position_at(self, t: float) -> Vector:
+        """The point a fraction ``t`` of the way along the edge, by length (build123d's
+        default PositionMode.PARAMETER walks the length too)."""
         if self._recipe is not None:
-            c = self._recipe.build()
-            a, b = c.parameter_range()
-            return Vector(c.evaluate(a + t * (b - a)))
+            return Vector(self._recipe.at_fraction(t))
         return Vector(self._e.point(t))
+
+    def __matmul__(self, t: float) -> Vector:
+        return self.position_at(t)
+
+    def __mod__(self, t: float) -> Vector:
+        return self.tangent_at(t)
 
     def center(self, center_of=None) -> Vector:
         return self.position_at(0.5) if self._recipe is not None else Vector(self._e.mid)
 
     def tangent_at(self, t: float = 0.5) -> Vector:
         if self._recipe is not None:
-            a, b = self.position_at(max(0.0, t - 1e-6)), self.position_at(min(1.0, t + 1e-6))
-            return (b - a).normalized()
+            return Vector(self._recipe.tangent_at_fraction(t))
         return Vector(self._e.tangent(t))
 
     def bounding_box(self) -> BoundBox:
@@ -817,17 +822,92 @@ class Wire:
     def length(self) -> float:
         return sum(e.length for e in self._edges)
 
+    def _edge_at(self, t: float):
+        """(edge, fraction along it, forward?) a fraction ``t`` of the wire's length along."""
+        lengths = [e.length for e in self._edges]
+        target = min(max(t, 0.0), 1.0) * sum(lengths)
+        end = tuple(self._edges[0].start_point())
+        if len(self._edges) > 1:  # a first edge stored end to start still starts the wire
+            nxt = self._edges[1]
+            e0 = self._edges[0]
+            if min((e0.start_point() - nxt.start_point()).length, (e0.start_point() - nxt.end_point()).length) < 1e-6:
+                end = tuple(e0.end_point())
+        for e, n in zip(self._edges, lengths):
+            forward = (e.start_point() - Vector(end)).length < 1e-6
+            if target <= n or e is self._edges[-1]:
+                f = min(max(target / n if n else 0.0, 0.0), 1.0)
+                return e, (f if forward else 1 - f), forward
+            target -= n
+            end = tuple(e.end_point() if forward else e.start_point())
+
+    def position_at(self, t: float) -> Vector:
+        e, f, _ = self._edge_at(t)
+        return e.position_at(f)
+
+    def tangent_at(self, t: float = 0.5) -> Vector:
+        e, f, forward = self._edge_at(t)
+        return e.tangent_at(f) * (1 if forward else -1)
+
+    def __matmul__(self, t: float) -> Vector:
+        return self.position_at(t)
+
+    def __mod__(self, t: float) -> Vector:
+        return self.tangent_at(t)
+
 
 class _Recipe:
     """A free curve as its defining points, so rigid moves and mirrors stay exact."""
 
-    def __init__(self, kind: str, points, periodic: bool = False):
+    def __init__(self, kind: str, points, periodic: bool = False, curve=None):
         self.kind = kind
         self.points = [tuple(float(c) for c in Vector(p)) for p in points]
         self.periodic = periodic
+        self.curve = curve  # kind "kernel": a sketch's own curve (ellipse, spline), kept as is
+        self._table = None
 
     def mapped(self, f) -> "_Recipe":
+        if self.kind == "kernel":
+            raise KeelError("moving or mirroring an ellipse or spline edge taken from a sketch is not supported yet")
         return _Recipe(self.kind, [f(p) for p in self.points], self.periodic)
+
+    def at_fraction(self, t: float):
+        """The point a fraction ``t`` of the length along. Lines and arcs are parametrized by
+        length already; other curves invert a dense chord-length table."""
+        c = self.build()
+        a, b = c.parameter_range()
+        if self.kind in ("line", "arc", "circle"):
+            return tuple(c.evaluate(a + t * (b - a)))
+        return tuple(c.evaluate(self._param_at(c, a, b, t)))
+
+    def tangent_at_fraction(self, t: float):
+        c = self.build()
+        a, b = c.parameter_range()
+        u = a + t * (b - a) if self.kind in ("line", "arc", "circle") else self._param_at(c, a, b, t)
+        h = (b - a) * 1e-6
+        p, q = c.evaluate(max(a, u - h)), c.evaluate(min(b, u + h))
+        return g.norm(g.sub(tuple(q), tuple(p)))
+
+    def _param_at(self, c, a: float, b: float, t: float) -> float:
+        if self._table is None:
+            n = 1024
+            us = [a + (b - a) * k / n for k in range(n + 1)]
+            pts = [tuple(c.evaluate(u)) for u in us]
+            acc = [0.0]
+            for p, q in zip(pts, pts[1:]):
+                acc.append(acc[-1] + g.dist(p, q))
+            self._table = (us, acc)
+        us, acc = self._table
+        target = min(max(t, 0.0), 1.0) * acc[-1]
+        lo, hi = 0, len(acc) - 1
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if acc[mid] < target:
+                lo = mid
+            else:
+                hi = mid
+        span = acc[hi] - acc[lo]
+        f = (target - acc[lo]) / span if span else 0.0
+        return us[lo] + f * (us[hi] - us[lo])
 
     @property
     def start(self):
@@ -835,7 +915,7 @@ class _Recipe:
 
     @property
     def end(self):
-        if self.kind == "circle" or (self.kind == "spline" and self.periodic):
+        if self.kind == "circle" or (self.kind in ("spline", "kernel") and self.periodic):
             return self.points[0]
         return self.points[-1]
 
@@ -848,6 +928,8 @@ class _Recipe:
     def build(self):
         """A fresh kernel curve."""
         k = self.kind
+        if k == "kernel":
+            return self.curve
         if k == "line":
             return ub.create_line_segment(self.points[0], self.points[1])
         if k == "bezier":
@@ -1073,6 +1155,122 @@ def make_face(edges=None, mode: Mode = Mode.ADD) -> Sketch:
     face = _local_face(edges)
     builder._combine([face], mode)
     return Sketch(face)
+
+
+def _hull_sites(edges) -> list[tuple]:
+    """Disks (cx, cy, r) whose convex hull is the hull of these edges: a circle is its disk,
+    a line its two ends (disks of radius 0)."""
+    sites = []
+    for e in edges:
+        r = e._free()
+        if any(abs(p[2]) > 1e-9 for p in r.points):
+            raise KeelError("make_hull: edges must lie in the XY plane (z = 0); build123d hulls in 2D")
+        if r.kind == "line":
+            sites += [(*r.points[0][:2], 0.0), (*r.points[1][:2], 0.0)]
+        elif r.kind == "circle":
+            c, rad, _ = r.circle()
+            sites.append((c[0], c[1], rad))
+        else:
+            raise KeelError(f"make_hull: {e.geom_type.name.lower()} edges are not supported yet "
+                            "(lines and full circles are)")
+    return sites
+
+
+def _outer_tangent(a, b):
+    """The tangent line from disk a to disk b with every disk on its left (counter-clockwise
+    hull): (point on a, point on b), or None when one disk holds the other."""
+    (ax, ay, ar), (bx, by, br) = a, b
+    vx, vy = bx - ax, by - ay
+    d = math.hypot(vx, vy)
+    if d <= abs(ar - br) + 1e-12:
+        return None
+    theta = math.acos(max(-1.0, min(1.0, (ar - br) / d)))
+    ux, uy = vx / d, vy / d
+    nx, ny = ux * math.cos(-theta) - uy * math.sin(-theta), ux * math.sin(-theta) + uy * math.cos(-theta)
+    return (ax + ar * nx, ay + ar * ny), (bx + br * nx, by + br * ny)
+
+
+def _disk_hull(disks) -> list[Edge]:
+    uniq = []
+    for dsk in disks:
+        if all(math.dist(dsk[:2], u[:2]) > 1e-9 or abs(dsk[2] - u[2]) > 1e-9 for u in uniq):
+            uniq.append(dsk)
+    uniq = [u for u in uniq if not any(  # drop disks inside another
+        v is not u and math.dist(u[:2], v[:2]) + u[2] <= v[2] + 1e-12 and (v[2] > u[2] or math.dist(u[:2], v[:2]) > 1e-12)
+        for v in uniq)]
+    if len(uniq) == 1:
+        cx, cy, r = uniq[0]
+        if r <= 0:
+            raise ValueError("No objects to create a hull")
+        return [Edge.make_circle(r, Plane.XY.shift_origin((cx, cy, 0)))]
+    tangents = {}
+    for i, a in enumerate(uniq):
+        best = None
+        for j, b in enumerate(uniq):
+            if i == j:
+                continue
+            t = _outer_tangent(a, b)
+            if t is None:
+                continue
+            (px, py), (qx, qy) = t
+            lx, ly = qx - px, qy - py
+            n = math.hypot(lx, ly)
+            if n < 1e-12:
+                continue
+            tol = 1e-9 * max(1.0, n)
+            if all((lx * (c[1] - py) - ly * (c[0] - px)) / n >= c[2] - tol for c in uniq):
+                if best is None or n > best[0]:  # collinear sites: skip to the farthest
+                    best = (n, j, t)
+        if best is not None:
+            tangents[i] = best
+    if not tangents:
+        raise ValueError("No objects to create a hull")
+    start = next(iter(tangents))
+    order, i = [], start
+    while True:
+        order.append(i)
+        i = tangents[i][1]
+        if i == start or i in order or i not in tangents:
+            break
+    if i != start:
+        raise KeelError("make_hull: could not close the hull (degenerate input)")
+    edges = []
+    for k, i in enumerate(order):
+        _, j, ((px, py), (qx, qy)) = tangents[i]
+        edges.append(Edge.make_line((px, py, 0.0), (qx, qy, 0.0)))
+        nxt = tangents[j][2][0]
+        cx, cy, r = uniq[j]
+        if r > 0 and math.dist((qx, qy), nxt) > 1e-9:
+            a0 = math.atan2(qy - cy, qx - cx)
+            a1 = math.atan2(nxt[1] - cy, nxt[0] - cx)
+            sweep_ = (a1 - a0) % (2 * math.pi)
+            am = a0 + sweep_ / 2
+            edges.append(Edge.make_three_point_arc((qx, qy, 0.0), (cx + r * math.cos(am), cy + r * math.sin(am), 0.0),
+                                                   (nxt[0], nxt[1], 0.0)))
+    return edges
+
+
+def make_hull(edges=None, mode: Mode = Mode.ADD) -> Sketch:
+    """A face from the convex hull of edges (default: a BuildSketch's pending edges and its
+    sketch so far). Exact: arcs of the circles joined by their tangent lines, where build123d
+    approximates the tangent points from a point cloud."""
+    builder = _innermost()
+    if edges is None:
+        if not isinstance(builder, BuildSketch):
+            raise ValueError("No objects to create a hull")
+        edges = list(builder.pending_edges)
+        if builder._region is not None:
+            edges += list(Sketch(builder._region).edges())
+        builder.pending_edges = []
+    edges = _free_edges(_flatten(edges if isinstance(edges, (list, tuple, ShapeList)) else [edges]))
+    if not edges:
+        raise ValueError("No objects to create a hull")
+    hull = _disk_hull(_hull_sites(edges))
+    if isinstance(builder, BuildSketch):
+        face = _local_face(hull)
+        builder._combine([face], mode)
+        return Sketch(face)
+    return _face(hull, face_up=True)
 
 
 def _sections(obj) -> list[_KSketch]:
@@ -1330,6 +1528,29 @@ class Sketch:
     def faces(self) -> "ShapeList":
         return ShapeList(Sketch(s) for s in self._items)
 
+    def _loops(self) -> list[list[Edge]]:
+        """Every boundary loop (outer, then holes, per region) as free edges, in world space."""
+        out = []
+        for item in self._items:
+            for outer, holes in item._loop_curves():
+                out.extend([[_curve_edge(c) for c in loop] for loop in (outer, *holes)])
+        return out
+
+    def edges(self) -> "ShapeList":
+        return ShapeList(e for loop in self._loops() for e in loop)
+
+    def wires(self) -> "ShapeList":
+        return ShapeList(Wire(loop) for loop in self._loops())
+
+    def vertices(self) -> "ShapeList":
+        """Corner points of the boundary (a full circle has one, where it starts)."""
+        out = ShapeList()
+        for e in self.edges():
+            p = e.start_point()
+            if all((p - q).length > 1e-9 for q in out):
+                out.append(p)
+        return out
+
     def _boolean(self, other: "Sketch", op: str) -> "Sketch":
         if isinstance(other, (list, tuple)):
             out = self
@@ -1370,6 +1591,25 @@ class Sketch:
 
     def __repr__(self):
         return f"<Sketch regions={len(self._items)} area={self.area:.6g}>"
+
+
+def _curve_edge(c) -> Edge:
+    """A free edge for a kernel curve: lines and circular arcs as exact recipes (so they move
+    and mirror exactly), anything else kept as the kernel's own curve."""
+    a, b = c.parameter_range()
+    pts = [tuple(c.evaluate(a + (b - a) * k / 12)) for k in range(13)]
+    name = type(c).__name__
+    if name == "Line":
+        return Edge(recipe=_Recipe("line", [pts[0], pts[12]]))
+    closed = c.is_closed()
+    probe = [pts[0], pts[4], pts[8]] if closed else [pts[0], pts[6], pts[12]]
+    try:
+        center, r, _ = _circumcircle(*probe)
+    except KeelError:
+        center = None
+    if center is not None and all(abs(g.dist(center, p) - r) <= 1e-7 * max(r, 1.0) for p in pts):
+        return Edge(recipe=_Recipe("circle" if closed else "arc", probe))
+    return Edge(recipe=_Recipe("kernel", [pts[0], pts[6], pts[12]], periodic=closed, curve=c))
 
 
 def _coplanar(p: g.Plane, q: g.Plane, tol: float = 1e-7) -> bool:
@@ -1879,5 +2119,5 @@ __all__ = [
     "Rotation", "Shape", "ShapeList", "Sketch", "SlotCenterToCenter", "SlotOverall", "Solid", "SortBy", "Sphere",
     "Torus", "Vector", "Vertex", "add", "chamfer", "extrude", "fillet", "mirror",
     "Bezier", "CenterArc", "Line", "Polyline", "RadiusArc", "Spline", "ThreePointArc", "Wire",
-    "loft", "make_face", "revolve", "sweep", "export_step", "export_stl",
+    "loft", "make_face", "make_hull", "revolve", "sweep", "export_step", "export_stl",
 ]
