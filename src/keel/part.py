@@ -461,14 +461,14 @@ def _tangent_chain(all_edges, chosen, tol: float = 1e-4) -> list:
         cur = frontier.pop()
         for p, t in _edge_ends(cur):
             for e, e_ends in ends:
+                # tangent continuation: same point, leaving in opposite directions. Test this
+                # first: it is cheap, and _same_edge asks the kernel for lengths and points.
+                if not any(g.dist(p, q) < 1e-6 and g.dot(t, u) < -1 + tol for q, u in e_ends):
+                    continue
                 if any(e is x or _same_edge(e, x) for x in selected):
                     continue
-                for q, u in e_ends:
-                    # tangent continuation: same point, leaving in opposite directions
-                    if g.dist(p, q) < 1e-6 and g.dot(t, u) < -1 + tol:
-                        selected.append(e)
-                        frontier.append(e)
-                        break
+                selected.append(e)
+                frontier.append(e)
     return selected
 
 
