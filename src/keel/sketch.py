@@ -333,15 +333,22 @@ def loft(*sketches: Sketch, smooth: bool = False) -> Part:
             r = _circle_radius(loop)
             if r is not None:
                 angles = corners if corners is not None else [ref_angle]
-                loop = _circle_arcs(s.plane, s.plane.to_local(center), r, angles)
+                # against a polygon, the arcs follow its edges by angle, as OpenCascade's loft
+                # does; between circles the kernel's exact arcs already match each other
+                loop = _circle_arcs(s.plane, s.plane.to_local(center), r, angles, by_angle=corners is not None)
         counts.append(len(loop))
         curves += loop
     degree = min(3, len(sketches) - 1) if smooth else 1
     return Part(call("loft", ub.create_skin_primitive, counts, curves, degree))
 
 
-def _circle_arcs(plane: Plane, center_local, radius: float, angles_rad) -> list:
-    """A full circle as counter-clockwise arcs starting at each angle (exact), placed on ``plane``."""
+def _circle_arcs(plane: Plane, center_local, radius: float, angles_rad, by_angle: bool = False) -> list:
+    """A full circle as counter-clockwise arcs starting at each angle (exact), placed on ``plane``.
+
+    ``by_angle=True`` makes each arc a spline whose parameter runs with the angle instead
+    (an exact arc's rational parameter doesn't): lofted against a straight edge, points the
+    same fraction along both then pair up as in OpenCascade's ThruSections. The spline
+    interpolates the arc every 2.8 degrees or less (within ~1e-9 of the radius)."""
     degs = [math.degrees(a) for a in angles_rad]
     if len(degs) == 1:
         # one full turn: two half arcs keep the kernel's arc constructor happy
@@ -352,5 +359,12 @@ def _circle_arcs(plane: Plane, center_local, radius: float, angles_rad) -> list:
         a1 = degs[(i + 1) % len(degs)]
         while a1 <= a0:
             a1 += 360.0
-        out.append(plane.place(ub.create_arc(c, radius, a0, a1)))
+        if by_angle:
+            n = max(8, math.ceil((a1 - a0) / 90.0 * 32))
+            pts = [(c[0] + radius * math.cos(math.radians(a0 + (a1 - a0) * k / n)),
+                    c[1] + radius * math.sin(math.radians(a0 + (a1 - a0) * k / n)), 0.0) for k in range(n + 1)]
+            arc = ub.create_curve_interp_points(pts, parameterization=ub.CurveParameterization.UNIFORM)
+        else:
+            arc = ub.create_arc(c, radius, a0, a1)
+        out.append(plane.place(arc))
     return out
