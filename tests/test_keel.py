@@ -335,3 +335,43 @@ def test_chamfer_setback_on_non_right_angle_edge():
     top = prism.edges(">Z")
     cut = prism.chamfer(top, 1)
     assert close(prism.volume - cut.volume, 0.5 * math.sin(math.radians(60)) * 10)
+
+
+def test_rounded_offsets_and_outward_shell():
+    # volumes from OpenCascade (build123d offset with Kind.ARC / Kind.INTERSECTION)
+    b = Box(30, 20, 15)
+    assert close(b.offset(1.5).volume, 13662)
+    assert close(b.offset(1.5, rounded=True).volume, 13523.595092691128, rel=1e-6)
+    assert close(b.shell(1.5, open=">Z", outward=True).volume, 3523.5, rel=1e-6)
+    assert close(b.shell(1.5, open=">Z", outward=True, rounded=True).volume, 3439.8119223689014, rel=1e-6)
+    # an opening taken from another copy of the part is matched by position
+    assert close(b.shell(1.5, open=b.move(0, 0, 0).faces(">Z")).volume, 2803.5, rel=1e-6)
+
+
+def test_batched_cut_and_fuse_match_one_at_a_time():
+    plate = Box(60, 40, 6)
+    pins = Cylinder(2, 10).at(grid(4, 3, 12, 10))
+    together, one_by_one = plate - pins, plate
+    for pin in pins:
+        one_by_one = one_by_one - pin
+    assert close(together.volume, one_by_one.volume, rel=1e-9)
+    assert close((plate + pins).volume, 60 * 40 * 6 + 12 * PI * 4 * 4, rel=1e-6)
+    # overlapping tools: the cut removes their union once
+    assert close((plate - [Cylinder(5, 10), Cylinder(5, 10).move(4, 0, 0)]).volume,
+                 plate.volume - (Cylinder(5, 10) + Cylinder(5, 10).move(4, 0, 0)).volume * 0.6, rel=1e-6)
+
+
+def test_moved_copies_share_measured_volume():
+    c = Cylinder(2, 10)
+    assert c._quick_volume() == c.move(5, 0, 0)._quick_volume()
+    assert c.move(5, 0, 0)._volumes is c._volumes
+    assert c.scale(2)._volumes is not c._volumes
+
+
+def test_text_sketch():
+    from keel.text import text_sketch
+
+    s = text_sketch("KEEL", 9)
+    if "FreeSans" in __import__("keel.text", fromlist=["find_font"]).find_font("Arial")[0]:
+        assert close(s.area, 48.271934205, rel=1e-9)
+    assert s.region_count == 4
