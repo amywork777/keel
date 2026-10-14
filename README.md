@@ -53,7 +53,7 @@ accumulate a part step by step.
 | Primitives | `Box(l, w, h)`, `Cylinder(r, h)`, `Cone(r0, r1, h)`, `Sphere(r)`, `Torus(R, r)`. They are centered unless `align="min"`/`"max"` or a per-axis tuple says otherwise. |
 | Booleans | `a + b` fuse, `a - b` cut, `a & b` intersect. The right side can be a list: `plate - holes`. `sum(parts)` fuses them all. |
 | Placement | `.move(x, y, z)`, `.rotate("Z", 45, about=(0,0,0))`, `.mirror("YZ")`, `.scale(2)`, `.place(plane)`, `.at(grid(...))` (copies) |
-| Features | `.fillet(edges, r)`, `.chamfer(edges, d)`, `.shell(t, open=faces)`, `.offset(d)` |
+| Features | `.fillet(edges, r)`, `.chamfer(edges, d)`, `.shell(t, open=faces, outward=False, rounded=False)`, `.offset(d, rounded=False)` (`rounded=True` is OpenCASCADE's arc join) |
 | Measures | `.volume`, `.area`, `.center`, `.bbox` (`.min .max .size .center`), `.is_valid` |
 
 Edge selections leave out seams, the lines where a cylinder or sphere wraps onto itself, because they can't be filleted. Use `edges(seams=True)` to include them.
@@ -85,7 +85,7 @@ Sketches are planar regions, including holes, drawn in a plane's local XY.
 
 | | |
 |---|---|
-| Shapes | `Rect(w, h)`, `Circle(r)`, `Ellipse(rx, ry)`, `RegularPolygon(r, n)`, `Polygon(*pts)`, `Slot(length, width)`, `RoundedRect(w, h, r)`, all centered |
+| Shapes | `Rect(w, h)`, `Circle(r)`, `Ellipse(rx, ry)`, `RegularPolygon(r, n)`, `Polygon(*pts)`, `Slot(length, width)`, `RoundedRect(w, h, r)`, all centered; `keel.text.text_sketch(txt, size, font="Arial")` (needs fontTools) |
 | Booleans | `+ - & ^` |
 | Placement | `.move(x, y)`, `.rotate(deg)`, `.mirror("Y")`, `.scale(f)`, `.at([(x, y), ...])`, `.on(target, x=, y=, rotation=)` |
 | To 3D | `.extrude(d, both=False, taper=0)`, `.revolve(deg, axis="Y")`, `.sweep(path)`, `loft(s1, s2, ...)` |
@@ -141,8 +141,8 @@ bd.export_step(part, "flange.step")
 It follows build123d 0.11's conventions (rotation order, alignment, workplanes, which
 side an arc bulges to), checked against real build123d. It covers the builders
 (`BuildPart`, `BuildSketch`, `BuildLine`), algebra mode, locations, the common primitives,
-line objects, `extrude`/`revolve`/`loft`/`sweep`, `fillet`/`chamfer`/`mirror` and
-`ShapeList` selection. Anything else raises `AttributeError` or `KeelError`: nothing is
+line objects, `extrude`/`revolve`/`loft`/`sweep`, `fillet`/`chamfer`/`mirror`/`offset`,
+`Hole`/`CounterBoreHole`/`CounterSinkHole`, `Text` and `ShapeList` selection. Anything else raises `AttributeError` or `KeelError`: nothing is
 silently approximated. Code that imports OpenCASCADE directly (`OCP`) can't run here.
 
 `compat/t2c_harness.py` runs whole text-to-cad projects through both libraries and
@@ -179,11 +179,15 @@ sphere poles and collapsed NURBS sides (`find` raises for those).
   where both include the same hub). keel raises instead. Build such shapes with `rotate`, or
   overlap them slightly. Reported upstream with a minimal reproduction
   ([image](docs/images/mirror_union_bug.png)).
+- **Patterns are one boolean.** `plate - holes` (and every object a keel123d `Locations` block
+  makes) goes to the kernel in one call, as in build123d: 100 holes take ~0.6 s, not one
+  boolean per hole on an ever busier body. The result is checked once against all the tools.
 - `Part.volume` and `Sketch.area` are measured to ~1e-6. The kernel's quick `volume()` can be
   0.1–0.7% off. `Part.area` is ~1e-4, the kernel's finest. `Part.bbox` is the tight box of the
   trimmed geometry.
-- Lofts line up sections before skinning: polygon loops start at the corner nearest the first section's start, and circles are split into exact arcs at the polygon's corner angles, so circle → polygon → circle doesn't twist.
-- Not available yet: text, STEP import, and per-edge variable fillets.
+- Lofts line up sections before skinning: polygon loops start at the corner nearest the first section's start, and circles are split at the polygon's corner angles, so circle → polygon → circle doesn't twist. Against a polygon the circle's pieces are splines that follow its edges by angle (within ~1e-9 of the arc), which is how OpenCASCADE pairs them, so a square-to-circle loft has build123d's volume.
+- `Text` reads the font with fontTools (`pip install fonttools`) and repeats OpenCASCADE's steps: the same font for a name ("Arial" is FreeSans on a Linux box without Arial), FreeType's unhinted outlines at 4800 ppem, and `Font_TextFormatter`'s float32 layout and kerning. Glyph faces are exact lines and Beziers. Text on a path and single-line fonts are not supported yet.
+- Not available yet: STEP import and per-edge variable fillets.
 - Splines through two or three points are the line or quadratic through them, as in OpenCASCADE (the kernel's interpolator needs four).
 
 ## Testing

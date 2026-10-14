@@ -15,7 +15,7 @@ Conventions follow build123d 0.11: rotations are degrees applied as Rx·Ry·Rz, 
 aligned before they are rotated, ``Polygon`` is not centered unless asked, and builder
 objects are placed at every location of the active ``Locations``.
 
-Not covered yet: joints and assemblies, text, ``offset``, ``fillet_2d``, importing files.
+Not covered yet: joints and assemblies, offsets of sketches and edges, text on a path, ``fillet_2d``, importing files.
 """
 
 from __future__ import annotations
@@ -75,6 +75,34 @@ class GeomType(enum.Enum):
 
     def __str__(self) -> str:
         return f"GeomType.{self.name}"
+
+
+class FontStyle(enum.Enum):
+    REGULAR = "regular"
+    BOLD = "bold"
+    ITALIC = "italic"
+    BOLDITALIC = "bolditalic"
+
+
+class TextAlign(enum.Enum):
+    LEFT = "left"
+    CENTER = "center"
+    RIGHT = "right"
+    BOTTOM = "bottom"
+    TOP = "top"
+    TOPFIRSTLINE = "topfirstline"
+
+
+class Kind(enum.Enum):
+    ARC = "arc"
+    INTERSECTION = "intersection"
+    TANGENT = "tangent"
+
+
+class Side(enum.Enum):
+    BOTH = "both"
+    LEFT = "left"
+    RIGHT = "right"
 
 
 class SortBy(enum.Enum):
@@ -1688,6 +1716,28 @@ def SlotCenterToCenter(center_separation: float, height: float, rotation: float 
     return _sketch_object(lambda: _sk.Slot(center_separation + height, height), rotation, _C2, mode)
 
 
+def Text(txt: str, font_size: float, font: str = "Arial", font_path=None, font_style: FontStyle = FontStyle.REGULAR,
+         text_align=(TextAlign.CENTER, TextAlign.CENTER), align=None, path=None, position_on_path: float = 0.0,
+         single_line_width: float | None = None, rotation: float = 0.0, mode: Mode = Mode.ADD):
+    """Text as exact faces, laid out like build123d (OpenCASCADE): the same font for the same
+    name ("Arial" falls back the way OpenCASCADE's font manager does), the same glyph curves
+    and positions."""
+    from keel.text import text_sketch
+
+    if path is not None:
+        raise KeelError("Text(path=...) is not supported yet")
+    if font.lower() in ("singleline", "relief singleline cad"):
+        raise KeelError("Text: single-line fonts are not supported yet")
+    halign, valign = (a.value if isinstance(a, TextAlign) else str(a).lower() for a in text_align)
+    if halign not in ("left", "center", "right"):
+        raise ValueError(f"Horizontal TextAlign must be LEFT, CENTER, or RIGHT. Got {text_align[0]}")
+    if valign not in ("bottom", "center", "top", "topfirstline"):
+        raise ValueError(f"Vertical TextAlign must be BOTTOM, CENTER, TOP, or TOPFIRSTLINE. Got {text_align[1]}")
+    style = font_style.value if isinstance(font_style, FontStyle) else str(font_style).lower()
+    return _sketch_object(lambda: text_sketch(txt, font_size, font, font_path, style, halign, valign),
+                          rotation, align, mode)
+
+
 # ---------------------------------------------------------------------------------------------
 # builders
 # ---------------------------------------------------------------------------------------------
@@ -1783,6 +1833,23 @@ class BuildPart(_Builder):
     def part(self) -> Part:
         return Part(self._part) if self._part is not None else Part([])
 
+    def edges(self) -> "ShapeList":
+        return self.part.edges()
+
+    def faces(self) -> "ShapeList":
+        return self.part.faces()
+
+    def vertices(self) -> "ShapeList":
+        return self.part.vertices()
+
+    def solids(self) -> "ShapeList":
+        return self.part.solids()
+
+    @property
+    def max_dimension(self) -> float:
+        """The part's bounding-box diagonal (0 before anything is built), as build123d."""
+        return self.part.bounding_box().diagonal if self._part is not None else 0.0
+
     def _combine(self, parts: list[_KPart], mode: Mode):
         if mode == Mode.PRIVATE or not parts:
             return
@@ -1796,8 +1863,10 @@ class BuildPart(_Builder):
             if self._part is not None:
                 self._part = self._part.cut(*parts)
         elif mode == Mode.INTERSECT:
+            # build123d keeps what is inside any of the new objects (their union), not their
+            # common part: with several locations, intersect with all of them fused
             if self._part is not None:
-                self._part = self._part.intersect(*parts)
+                self._part = self._part.intersect(parts[0].fuse(*parts[1:]) if len(parts) > 1 else parts[0])
 
     def _placements(self) -> list[Location]:
         return [Location(wp) * loc for wp in self.workplanes for loc in _locations(self)]
@@ -1971,6 +2040,53 @@ def Torus(major_radius: float, minor_radius: float, minor_start_angle: float = 0
                         rotation, align, mode)
 
 
+def _hole_depth(depth: float | None) -> float:
+    """build123d's hole depth: as given, or (through) the part's diagonal."""
+    builder = _innermost()
+    if depth is not None:
+        return float(depth)
+    if isinstance(builder, BuildPart):
+        return builder.max_dimension
+    raise ValueError("No depth provided")
+
+
+def _hole(tool: _KPart, mode: Mode) -> Part:
+    builder = _innermost()
+    if not isinstance(builder, BuildPart):
+        raise RuntimeError("holes must be made inside a BuildPart")
+    builder._combine([_place(tool, loc) for loc in builder._placements()], mode)
+    return Part(tool)
+
+
+def Hole(radius: float, depth: float | None = None, mode: Mode = Mode.SUBTRACT) -> Part:
+    """A round hole centered on each location, reaching ``depth`` both ways (build123d's
+    convention); without a depth it goes through the whole part."""
+    return _hole(_so.Cylinder(radius, 2 * _hole_depth(depth)), mode)
+
+
+def CounterBoreHole(radius: float, counter_bore_radius: float, counter_bore_depth: float,
+                    depth: float | None = None, mode: Mode = Mode.SUBTRACT) -> Part:
+    """A hole ``depth`` deep below each location (default: the part's diagonal) with a wider
+    bore ``counter_bore_depth`` deep at its top; the bore also clears everything above."""
+    d, cbd = _hole_depth(depth), float(counter_bore_depth)
+    shaft = _so.Cylinder(radius, d, align=("center", "center", "max"))
+    bore = _so.Cylinder(counter_bore_radius, cbd + d, align=("center", "center", "min")).move(0, 0, -cbd)
+    return _hole(shaft.fuse(bore), mode)
+
+
+def CounterSinkHole(radius: float, counter_sink_radius: float, depth: float | None = None,
+                    counter_sink_angle: float = 82, mode: Mode = Mode.SUBTRACT) -> Part:
+    """A hole ``depth`` deep below each location (default: the part's diagonal) with a conical
+    countersink of ``counter_sink_angle`` (included angle) and top radius ``counter_sink_radius``;
+    the countersink also clears everything above."""
+    d = _hole_depth(depth)
+    cone_height = counter_sink_radius / math.tan(math.radians(counter_sink_angle / 2.0))
+    shaft = _so.Cylinder(radius, d, align=("center", "center", "max"))
+    sink = _so.Cone(0, counter_sink_radius, cone_height, align=("center", "center", "max"))
+    top = _so.Cylinder(counter_sink_radius, d, align=("center", "center", "min"))
+    return _hole(shaft.fuse(sink, top), mode)
+
+
 # ---------------------------------------------------------------------------------------------
 # operations
 # ---------------------------------------------------------------------------------------------
@@ -2072,6 +2188,38 @@ def chamfer(objects, length: float, length2: float | None = None, angle: float |
     return Part(target._one().chamfer([e._e for e in edges], length), target.label, target.color)
 
 
+def offset(objects=None, amount: float = 0, openings=None, kind: Kind = Kind.ARC, side: Side = Side.BOTH,
+           closed: bool = True, min_edge_length: float | None = None, mode: Mode = Mode.REPLACE) -> Part:
+    """Offset solids by ``amount`` (positive grows, negative shrinks). With ``openings``
+    (faces of the solid) the solid is hollowed instead, walls ``amount`` thick and those faces
+    open, like build123d's offset of a Solid. ``Kind.ARC`` rounds the gaps the offset opens
+    at edges; ``Kind.INTERSECTION`` extends the faces until they meet."""
+    if kind == Kind.TANGENT:
+        raise ValueError("Kind.TANGENT not supported")
+    builder = _innermost()
+    if objects is None:
+        if not isinstance(builder, BuildPart) or builder._part is None:
+            raise ValueError("objects must be provided")
+        objects = builder.part
+    shapes = _flatten(objects if isinstance(objects, (list, tuple, ShapeList)) else [objects])
+    if not all(isinstance(o, Shape) for o in shapes):
+        raise KeelError("offset: only solids are supported yet (not sketches, faces or edges)")
+    openings = _flatten([openings] if isinstance(openings, Face) else list(openings or []))
+    rounded = kind == Kind.ARC
+    parts = [p for o in shapes for p in o._parts]
+    results = []
+    for p in parts:
+        if openings:
+            mine = openings if len(parts) == 1 else [f for f in openings if f._f._owner is p.brep]
+            results.append(p.shell(amount, open=[f._f for f in mine], outward=amount > 0, rounded=rounded)
+                           if mine else p.offset(amount, rounded=rounded))
+        else:
+            results.append(p.offset(amount, rounded=rounded))
+    if isinstance(builder, BuildPart):
+        builder._combine(results, mode)
+    return Part(results)
+
+
 def mirror(objects=None, about: Plane = Plane.XZ, mode: Mode = Mode.ADD):
     builder = _innermost()
     if objects is None and isinstance(builder, BuildPart):
@@ -2117,7 +2265,7 @@ __all__ = [
     "Cylinder", "Edge", "Ellipse", "Face", "GeomType", "GridLocations", "Location", "Locations", "Mode", "Part",
     "Plane", "PolarLocations", "Polygon", "Pos", "Rectangle", "RectangleRounded", "RegularPolygon", "Rot",
     "Rotation", "Shape", "ShapeList", "Sketch", "SlotCenterToCenter", "SlotOverall", "Solid", "SortBy", "Sphere",
-    "Torus", "Vector", "Vertex", "add", "chamfer", "extrude", "fillet", "mirror",
+    "Torus", "Vector", "Vertex", "add", "CounterBoreHole", "CounterSinkHole", "Hole", "chamfer", "extrude", "fillet", "mirror",
     "Bezier", "CenterArc", "Line", "Polyline", "RadiusArc", "Spline", "ThreePointArc", "Wire",
-    "loft", "make_face", "make_hull", "revolve", "sweep", "export_step", "export_stl",
+    "loft", "make_face", "make_hull", "offset", "Kind", "Side", "Text", "FontStyle", "TextAlign", "revolve", "sweep", "export_step", "export_stl",
 ]

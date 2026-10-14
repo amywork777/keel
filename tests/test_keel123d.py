@@ -236,3 +236,124 @@ def test_positions_along_edges_and_wires_go_by_length():
     spline = bd.Spline((0, 0), (3, 4), (6, 0), (10, 2))
     assert tuple(spline @ 0.3) == pytest.approx((2.0417, 4.2876, 0), abs=1e-4)
     assert tuple(spline % 0.3) == pytest.approx((0.9249, 0.3803, 0), abs=1e-4)
+
+
+def test_holes_follow_build123d():
+    # volumes from build123d 0.11.1 (OpenCascade) for the same script
+    with bd.BuildPart() as p:
+        bd.Box(60, 40, 10, align=(C, C, MIN))
+        with bd.Locations((0, 0, 10)):
+            with bd.GridLocations(20, 0, 3, 1):
+                bd.CounterBoreHole(2, 4, 3)
+        with bd.Locations((0, 12, 10), (0, -12, 10)):
+            bd.CounterSinkHole(1.5, 3, depth=6)
+        with bd.Locations((25, 15, 10)):
+            bd.Hole(1, depth=4)  # centered on its location: 4 mm each way, so 4 mm into the part
+        with bd.Locations(bd.Plane.XZ.offset(-20)):
+            with bd.Locations((-25, 5)):
+                bd.Hole(1.5)  # through everything
+    assert close(p.part.volume, 22871.058263463747, rel=1e-6)
+    assert len(p.faces()) == len(p.part.faces()) and len(p.edges()) == len(p.part.edges())
+    assert len(p.vertices()) == len(p.part.vertices())
+    with pytest.raises(ValueError, match="No depth provided"):
+        bd.Hole(1)
+
+
+def test_hole_grid_cuts_in_one_boolean():
+    # every hole of a Locations block goes into one kernel call (build123d cuts them together
+    # too); 100 holes take about half a second instead of tens of seconds
+    import time
+
+    t0 = time.perf_counter()
+    with bd.BuildPart() as p:
+        bd.Box(60, 60, 4, align=(C, C, MIN))
+        with bd.Locations((0, 0, 4)):
+            with bd.GridLocations(5.5, 5.5, 10, 10):
+                bd.Hole(1.5)
+    assert close(p.part.volume, 60 * 60 * 4 - 100 * PI * 1.5**2 * 4, rel=1e-6)
+    assert time.perf_counter() - t0 < 5
+
+
+def test_intersect_mode_keeps_what_any_new_object_covers():
+    # build123d intersects with the union of the objects made at all locations
+    with bd.BuildPart() as p:
+        bd.Box(20, 20, 20)
+        with bd.Locations((7, 0, 0), (-7, 0, 0)):
+            bd.Sphere(6, mode=bd.Mode.INTERSECT)
+    assert close(p.part.volume, 1526.8140119640652, rel=1e-5)
+
+
+@pytest.mark.parametrize(
+    "amount, open_top, kind, expected",
+    [
+        (-1.5, True, bd.Kind.ARC, 2803.5),
+        (1.5, True, bd.Kind.ARC, 3439.8119223689014),
+        (1.5, True, bd.Kind.INTERSECTION, 3523.5),
+        (-1.5, False, bd.Kind.ARC, 5508.0),
+        (1.5, False, bd.Kind.ARC, 13523.595092691128),
+        (1.5, False, bd.Kind.INTERSECTION, 13662.0),
+    ],
+)
+def test_offset_and_shell_match_build123d(amount, open_top, kind, expected):
+    with bd.BuildPart() as p:
+        bd.Box(30, 20, 15, align=(C, C, MIN))
+        bd.offset(amount=amount, openings=p.faces().sort_by(bd.Axis.Z)[-1] if open_top else None, kind=kind)
+    assert p.part.is_valid
+    assert close(p.part.volume, expected, rel=1e-6)
+
+
+def test_offset_of_a_cylinder_shell():
+    with bd.BuildPart() as p:
+        bd.Cylinder(10, 15, align=(C, C, MIN))
+        bd.offset(amount=-1.5, openings=p.faces().sort_by(bd.Axis.Z)[-1])
+    assert close(p.part.volume, 1648.158045889545, rel=1e-5)
+
+
+def test_text_matches_build123d():
+    # build123d 0.11.1 resolves "Arial" through OpenCascade's font aliases; keel finds the
+    # same font, glyph curves and layout. Areas from Compound.make_text, boxes from Text.
+    font = __import__("keel.text", fromlist=["find_font"]).find_font("Arial")[0]
+    if not font.endswith("FreeSans.ttf"):
+        pytest.skip("reference values were taken with FreeSans standing in for Arial")
+    with bd.BuildPart() as p:
+        bd.Box(50, 15, 3, align=(C, C, MIN))
+        with bd.BuildSketch(bd.Plane.XY.offset(3)):
+            bd.Text("KEEL", font_size=9)
+        bd.extrude(amount=1)
+    assert close(p.part.volume, 2298.271934205416, rel=1e-9)
+    TA = bd.TextAlign
+    cases = [
+        ("KEEL", 9, {}, 48.271934205, (-10.1205, -2.25, 10.7955, 4.311)),
+        ("Ag Oq%", 10, dict(text_align=(TA.LEFT, TA.BOTTOM)), 82.507835056, (0.15, -2.18, 36.58, 7.41)),
+        ("two\nlines", 8, dict(text_align=(TA.RIGHT, TA.TOP)), 52.068858918, (-15.288, -15.384, -0.232, -1.056)),
+        ("abc\nlonger line\nx", 6, {}, 52.446155259, (-12.843, -8.1, 13.023, 9.474)),
+        ("Bold", 9, dict(font_style=bd.FontStyle.BOLD), 64.515427895, (-8.973, -2.457, 9.288, 4.311)),
+        ("Ital", 9, dict(font_style=bd.FontStyle.ITALIC), 27.191414974, (-4.9905, -2.457, 6.6555, 4.311)),
+    ]
+    for txt, size, kw, area, box in cases:
+        with bd.BuildSketch() as s:
+            bd.Text(txt, size, **kw)
+        assert close(s.sketch.area, area, rel=1e-8), txt
+        b = bd.extrude(s.sketch, amount=1).bounding_box()
+        assert (b.min.X, b.min.Y, b.max.X, b.max.Y) == pytest.approx(box, abs=1e-3), txt
+
+
+def test_loft_square_to_circle_matches_build123d():
+    with bd.BuildPart() as p:
+        with bd.BuildSketch():
+            bd.Rectangle(20, 20)
+        with bd.BuildSketch(bd.Plane.XY.offset(20)):
+            bd.Circle(6)
+        bd.loft()
+    # OpenCascade's ThruSections pairs each square side with a quarter of the circle by angle
+    assert close(p.part.volume, 4861.155009398977, rel=1e-6)
+
+
+def test_fillet_on_a_non_manifold_body_says_so():
+    touching = bd.Box(20, 20, 10, align=(C, C, MIN)) + bd.Pos(0, 0, 15) * bd.Rot(90, 0, 0) * bd.Cylinder(5, 20)
+    assert not touching.is_valid  # the cylinder rests on the box along a line
+    with pytest.raises(KeelError, match="already non-manifold before the fillet"):
+        bd.fillet(touching.edges().filter_by(bd.Axis.Z), radius=1)
+    corner = bd.Box(10, 10, 10) + bd.Pos(10, 10, 0) * bd.Box(10, 10, 10)  # boxes sharing an edge
+    with pytest.raises(KeelError, match="already non-manifold before the chamfer"):
+        bd.chamfer(corner.edges().group_by(bd.Axis.Z)[-1], length=1)
